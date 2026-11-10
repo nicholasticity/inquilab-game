@@ -1,13 +1,14 @@
 import { deferredPaths, finalePaths, levelPaths, titlePaths } from "./assets";
+import { HUD_BUTTONS, mountHudButtons } from "./hud";
 import { urlForPath } from "./art-urls";
 import { drawWorld, type ArtBook } from "./draw";
 import {
+  LEVELS,
+  LNAME,
   applyLevel,
   blankInp,
   fresh,
-  LNAME,
   respawn,
-  stepParts,
   tick,
   VH,
   VW,
@@ -16,35 +17,17 @@ import {
   type World,
 } from "./game";
 
-interface Hold {
-  l: boolean;
-  r: boolean;
-  u: boolean;
-  d: boolean;
-  jump: boolean;
-  atk: boolean;
-  dash: boolean;
-  dodge: boolean;
-  act: boolean;
-}
-
-const HOLD_KEYS: (keyof Hold)[] = ["l", "r", "u", "d", "jump", "atk", "dash", "dodge", "act"];
-
-function emptyHold(): Hold {
-  return { l: false, r: false, u: false, d: false, jump: false, atk: false, dash: false, dodge: false, act: false };
-}
-
-const art: ArtBook = { bg: {}, portrait: {}, frame: {}, ground: {}, prop: {} };
+const art: ArtBook = { bg: {}, portrait: {}, tile: {}, sheet: {} };
 const loaded = new Map<string, HTMLImageElement>();
 const inflight = new Map<string, Promise<void>>();
 
 function place(path: string, im: HTMLImageElement): void {
   const url = urlForPath(path);
   if (path.startsWith("assets/bg/")) art.bg[path.slice("assets/bg/".length, -".webp".length)] = im;
-  else if (path.startsWith("assets/ground/")) art.ground[path.slice("assets/ground/".length, -".webp".length)] = im;
-  else if (path.startsWith("assets/prop/")) art.prop[path.slice("assets/prop/".length, -".webp".length)] = im;
   else if (path.startsWith("assets/portraits/")) art.portrait[path.slice("assets/portraits/".length, -".webp".length)] = im;
-  else if (path.startsWith("assets/frames/")) art.frame[path.slice("assets/frames/".length, -".webp".length)] = im;
+  else if (path.startsWith("assets/tiles/")) art.tile[path.slice("assets/tiles/".length, -".webp".length)] = im;
+  else if (path.startsWith("assets/props/")) art.tile[path.slice("assets/props/".length, -".webp".length)] = im;
+  else if (path.startsWith("assets/sheets/")) art.sheet[path.slice("assets/sheets/".length, -".webp".length)] = im;
   loaded.set(url, im);
 }
 
@@ -81,7 +64,7 @@ function ready(paths: string[]): boolean {
   return paths.every((path) => loaded.has(urlForPath(path)));
 }
 
-function boot(art: ArtBook): void {
+function boot(): void {
   const canvas = document.getElementById("game");
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Missing canvas");
   const ctx = canvas.getContext("2d");
@@ -89,26 +72,37 @@ function boot(art: ArtBook): void {
 
   const world: World = fresh();
   const keys: Record<string, boolean> = {};
-  const hold = emptyHold();
-  const prev = { jump: false, atk: false, dash: false, dodge: false, act: false, start: false, pause: false };
   const frame = mustEl("frame");
   const stickEl = mustEl("stick");
   const knobEl = mustEl("stick-knob");
-  const actBtn = mustEl("btn-act");
+  const idleEl = mustEl("stick-idle");
+  const hudButtons = mountHudButtons(mustEl("actions"));
   let stickId: number | null = null;
-  let flick = false;
-  let prevKnob = 0;
-  let prevKnobT = 0;
+  let originX = 0;
+  let originY = 0;
+  let stickX = 0;
+  let stickY = 0;
+  let stickMag = 0;
+  let actHeld = false;
+  let throwPulse = false;
+  let aimX = 0;
+  let aimY = 0;
+  let abilityPulse = false;
+  let crouchPulse = false;
+  let pick = 0;
+  const pulses = { start: false, pause: false };
+  const prev = { act: false, ability: false, crouch: false, throw: false, start: false, pause: false };
+
   const clearStick = () => {
     stickId = null;
-    hold.l = false;
-    hold.r = false;
-    hold.u = false;
-    hold.d = false;
+    stickX = 0;
+    stickY = 0;
+    stickMag = 0;
     stickEl.hidden = true;
+    idleEl.hidden = false;
     knobEl.style.transform = "translate(0px, 0px)";
   };
-  const aimStick = (clientX: number, clientY: number, originX: number, originY: number) => {
+  const aimStick = (clientX: number, clientY: number) => {
     let dx = clientX - originX;
     let dy = clientY - originY;
     const dist = Math.hypot(dx, dy);
@@ -118,30 +112,23 @@ function boot(art: ArtBook): void {
       dy = dy / dist * max;
     }
     knobEl.style.transform = "translate(" + dx.toFixed(1) + "px, " + dy.toFixed(1) + "px)";
-    const dead = 12;
-    hold.l = dx < -dead;
-    hold.r = dx > dead;
-    hold.u = dy < -dead;
-    hold.d = dy > dead * 1.15;
-    const now = performance.now();
-    const dt = (now - prevKnobT) / 1000;
-    if (dt > 0 && dt < 0.08 && Math.abs(dx - prevKnob) / dt > 1400 && Math.abs(dx) > Math.abs(dy)) flick = true;
-    prevKnob = dx;
-    prevKnobT = now;
+    stickMag = Math.min(1, dist / max);
+    stickX = dist > 10 ? dx / dist : 0;
+    stickY = dist > 10 ? dy / dist : 0;
   };
-  let originX = 0;
-  let originY = 0;
   frame.addEventListener("pointerdown", (e) => {
     if (document.body.dataset.mode !== "play") return;
-    if (e.target instanceof Element && e.target.closest("button")) return;
+    if (e.target instanceof Element && e.target.closest("button, #choice-ui")) return;
     const rect = frame.getBoundingClientRect();
-    if (e.clientX - rect.left > rect.width * 0.48) return;
+    const localX = e.clientX - rect.left;
+    const handsLeft = document.body.classList.contains("hands-left");
+    const inStick = handsLeft ? localX > rect.width * 0.52 : localX < rect.width * 0.48;
+    if (!inStick) return;
     stickId = e.pointerId;
     originX = e.clientX;
     originY = e.clientY;
-    prevKnob = 0;
-    prevKnobT = performance.now();
     stickEl.hidden = false;
+    idleEl.hidden = true;
     stickEl.style.left = (e.clientX - rect.left) + "px";
     stickEl.style.top = (e.clientY - rect.top) + "px";
     frame.setPointerCapture(e.pointerId);
@@ -149,7 +136,7 @@ function boot(art: ArtBook): void {
   });
   frame.addEventListener("pointermove", (e) => {
     if (e.pointerId !== stickId) return;
-    aimStick(e.clientX, e.clientY, originX, originY);
+    aimStick(e.clientX, e.clientY);
   });
   const endStick = (e: PointerEvent) => {
     if (e.pointerId !== stickId) return;
@@ -159,17 +146,77 @@ function boot(art: ArtBook): void {
   frame.addEventListener("pointerup", endStick);
   frame.addEventListener("pointercancel", endStick);
   frame.addEventListener("contextmenu", (e) => e.preventDefault());
-  const pulses = { start: false, pause: false };
+
+  const actBtn = hudButtons.find((btn) => btn.dataset.hud === "act");
+  const abilityBtn = hudButtons.find((btn) => btn.dataset.hud === "ability");
+  const crouchBtn = hudButtons.find((btn) => btn.dataset.hud === "crouch");
+  const throwBtn = hudButtons.find((btn) => btn.dataset.hud === "throw");
+  const bindPress = (el: HTMLElement | undefined, down: () => void, up?: () => void) => {
+    if (!el) return;
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+      el.classList.add("is-down");
+      down();
+    });
+    const release = (e: PointerEvent) => {
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      if (up) up();
+    };
+    el.addEventListener("pointerup", release);
+    el.addEventListener("pointercancel", release);
+  };
+  bindPress(actBtn, () => { actHeld = true; }, () => { actHeld = false; actBtn?.classList.remove("is-down"); });
+  bindPress(abilityBtn, () => { abilityPulse = true; }, () => { abilityBtn?.classList.remove("is-down"); });
+  bindPress(crouchBtn, () => { crouchPulse = true; }, () => { crouchBtn?.classList.remove("is-down"); });
+  if (throwBtn) {
+    let throwId: number | null = null;
+    let ox = 0;
+    let oy = 0;
+    throwBtn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      throwId = e.pointerId;
+      ox = e.clientX;
+      oy = e.clientY;
+      aimX = 0;
+      aimY = 0;
+      throwBtn.setPointerCapture(e.pointerId);
+      throwBtn.classList.add("is-down");
+    });
+    throwBtn.addEventListener("pointermove", (e) => {
+      if (e.pointerId !== throwId) return;
+      const dx = e.clientX - ox;
+      const dy = e.clientY - oy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 8) {
+        aimX = dx / dist;
+        aimY = dy / dist;
+      }
+    });
+    const releaseThrow = (e: PointerEvent) => {
+      if (e.pointerId !== throwId) return;
+      if (throwBtn.hasPointerCapture(e.pointerId)) throwBtn.releasePointerCapture(e.pointerId);
+      throwBtn.classList.remove("is-down");
+      throwPulse = true;
+      throwId = null;
+    };
+    throwBtn.addEventListener("pointerup", releaseThrow);
+    throwBtn.addEventListener("pointercancel", releaseThrow);
+  }
+
   let uiMode: Mode | null = null;
   let uiUnlocked = -1;
-
   const titleUi = mustEl("title-ui");
   const chapterUi = mustEl("chapter-ui");
   const pauseUi = mustEl("pause-ui");
+  const choiceUi = mustEl("choice-ui");
   const chapterWait = mustEl("chapter-wait");
   const chapterButtons: HTMLButtonElement[] = [];
   type Pending = { kind: "begin" } | { kind: "pick"; n: number } | { kind: "finale" };
   let pending: Pending | null = null;
+  let choiceKey = "";
 
   const showWait = (text: string) => {
     chapterWait.textContent = text;
@@ -179,19 +226,19 @@ function boot(art: ArtBook): void {
 
   const requestLevel = (n: number) => {
     if (world.mode !== "title" && world.mode !== "select") return;
-    if (n < 1 || n > 5 || n > world.unlocked) return;
+    if (n < 1 || n > LEVELS || n > world.unlocked) return;
     if (ready(levelPaths(n))) {
       pending = null;
       hideWait();
-      applyLevel(world, n, n === 5 ? "l5" : "l" + String(n));
+      applyLevel(world, n, "brief");
       return;
     }
     pending = { kind: "pick", n };
-    showWait("Loading this chapter…");
+    showWait("Loading this mission…");
     void ensure(levelPaths(n), "high");
   };
 
-  for (let n = 1; n <= 5; n++) {
+  for (let n = 1; n <= LEVELS; n++) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.ch = String(n);
@@ -204,33 +251,6 @@ function boot(art: ArtBook): void {
     chapterUi.appendChild(btn);
     chapterButtons.push(btn);
   }
-
-  const bindHold = (el: HTMLElement, key: keyof Hold) => {
-    const down = (e: PointerEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      el.setPointerCapture(e.pointerId);
-      hold[key] = true;
-      el.classList.add("is-down");
-    };
-    const up = (e: PointerEvent) => {
-      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
-      hold[key] = false;
-      el.classList.remove("is-down");
-    };
-    el.addEventListener("pointerdown", down);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
-    el.addEventListener("lostpointercapture", () => {
-      hold[key] = false;
-      el.classList.remove("is-down");
-    });
-  };
-
-  document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
-    const key = el.dataset.hold;
-    if (key && (HOLD_KEYS as string[]).includes(key)) bindHold(el, key as keyof Hold);
-  });
 
   mustEl("btn-begin").addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -268,29 +288,25 @@ function boot(art: ArtBook): void {
     world.mode = "select";
   });
 
-  canvas.addEventListener("pointerdown", () => {
-    const m = world.mode;
-    if (m === "title" || m === "talk" || m === "done" || m === "finale" || m === "dead") pulses.start = true;
-  });
-
-  const prevent = new Set(["arrowleft", "arrowright", "arrowup", "arrowdown", " ", "space", "shift", "enter", "escape", "a", "d", "w", "s", "j", "x", "k", "c", "l", "p"]);
+  const prevent = new Set(["arrowleft", "arrowright", "arrowup", "arrowdown", " ", "space", "shift", "enter", "escape", "a", "d", "w", "s", "e", "c", "q", "f", "p"]);
   window.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
     if (prevent.has(k)) e.preventDefault();
     keys[k] = true;
     if (e.repeat) return;
-    if (k >= "1" && k <= "5") {
-      const n = parseInt(k, 10);
-      requestLevel(n);
-    }
+    if ((world.mode === "title" || world.mode === "select") && k >= "1" && k <= String(LEVELS)) requestLevel(parseInt(k, 10));
+    if (world.prompt && k >= "1" && k <= "3") pick = parseInt(k, 10);
   });
   window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
   window.addEventListener("blur", () => {
     for (const k of Object.keys(keys)) keys[k] = false;
-    for (const key of HOLD_KEYS) hold[key] = false;
+    actHeld = false;
+    clearStick();
   });
 
   const fit = () => {
+    const viewH = window.visualViewport?.height ?? window.innerHeight;
+    document.documentElement.style.setProperty("--app-h", Math.round(viewH) + "px");
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(VW * dpr);
     canvas.height = Math.round(VH * dpr);
@@ -300,20 +316,158 @@ function boot(art: ArtBook): void {
   };
   fit();
   window.addEventListener("resize", fit);
+  window.visualViewport?.addEventListener("resize", fit);
+  window.visualViewport?.addEventListener("scroll", fit);
+
+  const portraitQuery = window.matchMedia("(orientation: portrait)");
+  let askedStage = false;
+  const goLandscape = () => {
+    if (askedStage) return;
+    askedStage = true;
+    const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+    const req = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+    const pendingFs = req ? Promise.resolve().then(() => req()) : Promise.resolve();
+    void pendingFs.catch(() => undefined).then(() => {
+      const orient = screen.orientation as ScreenOrientation & { lock?: (type: string) => Promise<void> };
+      if (!orient.lock) return undefined;
+      return orient.lock("landscape");
+    }).catch(() => undefined);
+  };
+  window.addEventListener("pointerdown", goLandscape, true);
+
+  type Prefs = { size: "s" | "m" | "l"; opacity: "low" | "mid" | "high"; left: boolean };
+  const prefKey = "inquilab-controls";
+  const readPrefs = (): Prefs => {
+    const fallback: Prefs = { size: "m", opacity: "high", left: false };
+    try {
+      const raw = localStorage.getItem(prefKey);
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw) as Partial<Prefs>;
+      return {
+        size: parsed.size === "s" || parsed.size === "l" ? parsed.size : "m",
+        opacity: parsed.opacity === "low" || parsed.opacity === "mid" ? parsed.opacity : "high",
+        left: parsed.left === true,
+      };
+    } catch {
+      return fallback;
+    }
+  };
+  let prefs = readPrefs();
+  const applyPrefs = () => {
+    document.documentElement.style.setProperty("--hud-scale", prefs.size === "s" ? "0.84" : prefs.size === "l" ? "1.16" : "1");
+    document.documentElement.style.setProperty("--hud-opacity", prefs.opacity === "low" ? "0.5" : prefs.opacity === "mid" ? "0.72" : "0.94");
+    document.body.classList.toggle("hands-left", prefs.left);
+    document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((btn) => {
+      btn.classList.toggle("is-on", btn.dataset.size === prefs.size);
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-opacity]").forEach((btn) => {
+      btn.classList.toggle("is-on", btn.dataset.opacity === prefs.opacity);
+    });
+    const hands = mustEl("btn-hands");
+    hands.classList.toggle("is-on", prefs.left);
+    hands.textContent = prefs.left ? "Left hand on" : "Left hand";
+    try { localStorage.setItem(prefKey, JSON.stringify(prefs)); } catch { /* private mode */ }
+  };
+  applyPrefs();
+  document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((btn) => {
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const size = btn.dataset.size;
+      if (size === "s" || size === "m" || size === "l") prefs = { ...prefs, size };
+      applyPrefs();
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-opacity]").forEach((btn) => {
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const opacity = btn.dataset.opacity;
+      if (opacity === "low" || opacity === "mid" || opacity === "high") prefs = { ...prefs, opacity };
+      applyPrefs();
+    });
+  });
+  mustEl("btn-hands").addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    prefs = { ...prefs, left: !prefs.left };
+    if (stickId !== null) clearStick();
+    applyPrefs();
+  });
+
+  const hints = document.querySelectorAll<HTMLElement>(".touch-hint");
+  let lastHint = "";
+  const syncHud = () => {
+    let key = "";
+    let text = "";
+    if (world.mode === "play" && world.level === 1) {
+      if (world.lesson <= 0) { key = "move"; text = "Sneak"; }
+      else if (world.lesson === 1) { key = "crouch"; text = "Crouch"; }
+      else if (world.lesson === 2) { key = "act"; text = "Action"; }
+      else if (world.lesson === 3) { key = "throw"; text = "Throw"; }
+    }
+    const stamp = key + ":" + text;
+    if (stamp !== lastHint) {
+      lastHint = stamp;
+      hints.forEach((hint) => {
+        const on = hint.dataset.hint === key;
+        hint.hidden = !on;
+        if (on) hint.textContent = text;
+      });
+      idleEl.classList.remove("is-hot");
+      for (const btn of hudButtons) btn.classList.remove("is-hot");
+      const hintEl = key ? document.querySelector<HTMLElement>(`.touch-hint[data-hint="${key}"]`) : null;
+      hintEl?.parentElement?.classList.add("is-hot");
+    }
+    crouchBtn?.classList.toggle("is-down", world.player.crouch);
+    for (const def of HUD_BUTTONS) {
+      const el = hudButtons.find((btn) => btn.dataset.hud === def.id);
+      if (el) el.setAttribute("aria-label", def.id === "act" ? world.actLabel : def.label);
+    }
+  };
+
+  const syncChoice = () => {
+    const prompt = world.mode === "play" ? world.prompt : null;
+    if (!prompt) {
+      choiceUi.hidden = true;
+      choiceKey = "";
+      return;
+    }
+    const key = prompt.id + prompt.q;
+    if (key !== choiceKey) {
+      choiceKey = key;
+      mustEl("choice-q").textContent = prompt.q;
+      const opts = mustEl("choice-options");
+      opts.replaceChildren();
+      prompt.options.forEach((opt, i) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = String(i + 1) + "   " + opt.label;
+        btn.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          pick = i + 1;
+        });
+        opts.appendChild(btn);
+      });
+    }
+    choiceUi.hidden = false;
+  };
 
   let last = performance.now();
   let acc = 0;
   const STEP = 1 / 60;
   const loop = (now: number) => {
-    let frame = (now - last) / 1000;
+    let frameDt = (now - last) / 1000;
     last = now;
-    if (frame > 0.12) frame = 0.12;
-    acc += frame;
+    if (portraitQuery.matches) frameDt = 0;
+    else if (frameDt > 0.12) frameDt = 0.12;
+    acc += frameDt;
     if (pending?.kind === "begin" && world.mode === "title" && ready(levelPaths(1))) {
       pending = null;
       hideWait();
       pulses.start = true;
-    } else if (pending?.kind === "begin" && world.mode === "done" && world.level < 5 && ready(levelPaths(world.level + 1))) {
+    } else if (pending?.kind === "begin" && world.mode === "done" && world.level < LEVELS && ready(levelPaths(world.level + 1))) {
       pending = null;
       hideWait();
       pulses.start = true;
@@ -325,47 +479,58 @@ function boot(art: ArtBook): void {
       const n = pending.n;
       pending = null;
       hideWait();
-      if (n <= world.unlocked) applyLevel(world, n, n === 5 ? "l5" : "l" + String(n));
+      if (n <= world.unlocked) applyLevel(world, n, "brief");
     }
     const down = (k: string) => keys[k] === true;
-    const throwing = world.mode === "play" && world.level === 4 && world.gallery && world.leaflets < 8;
-    const actLabel = throwing ? "Throw" : hold.d ? "Slide" : "Dash";
-    if (actBtn.textContent !== actLabel) actBtn.textContent = actLabel;
-    const jumpNow = down(" ") || down("space") || down("arrowup") || down("w") || hold.jump;
-    const atkNow = down("j") || down("x") || hold.atk;
-    const actNow = hold.act;
-    const dashNow = down("k") || down("c") || hold.dash || (actNow && !throwing) || flick;
-    const dodgeNow = down("l") || down("shift") || hold.dodge;
+    let mx = stickX;
+    let my = stickY;
+    let mag = stickMag;
+    const runKey = down("shift");
+    if (mag < 0.08) {
+      const kx = (down("d") || down("arrowright") ? 1 : 0) - (down("a") || down("arrowleft") ? 1 : 0);
+      const ky = (down("s") || down("arrowdown") ? 1 : 0) - (down("w") || down("arrowup") ? 1 : 0);
+      const kl = Math.hypot(kx, ky);
+      if (kl > 0) {
+        mx = kx / kl;
+        my = ky / kl;
+        mag = runKey ? 1 : 0.55;
+      }
+    }
+    const actNow = actHeld || down("e");
+    const abilityNow = down("f");
+    const crouchNow = down("c");
+    const throwNow = down("q");
     const startNow = down("enter") || down(" ");
     const pauseNow = down("escape") || down("p");
     const inp: Inp = {
       ...blankInp(),
-      l: down("arrowleft") || down("a") || hold.l,
-      r: down("arrowright") || down("d") || hold.r,
-      u: down("arrowup") || down("w") || hold.u,
-      d: down("arrowdown") || down("s") || hold.d,
-      jump: jumpNow,
-      jumpP: (jumpNow && !prev.jump),
-      atk: atkNow,
-      atkP: atkNow && !prev.atk,
-      atkR: prev.atk && !atkNow,
-      dash: dashNow,
-      dashP: (dashNow && !prev.dash) || flick,
-      dodge: dodgeNow,
-      dodgeP: dodgeNow && !prev.dodge,
+      x: mx,
+      y: my,
+      mag,
+      run: runKey || mag >= 0.82,
+      crouchP: crouchPulse || (crouchNow && !prev.crouch),
       act: actNow,
-      actP: throwing && actNow && !prev.act,
+      actP: actNow && !prev.act,
+      throwP: throwPulse || (throwNow && !prev.throw),
+      aimX: throwPulse ? aimX : 0,
+      aimY: throwPulse ? aimY : 0,
+      abilityP: abilityPulse || (abilityNow && !prev.ability),
       startP: (startNow && !prev.start) || pulses.start,
       pauseP: (pauseNow && !prev.pause) || pulses.pause,
+      pick,
     };
-    flick = false;
-    prev.jump = jumpNow;
-    prev.atk = atkNow;
-    prev.dash = dashNow;
-    prev.dodge = dodgeNow;
     prev.act = actNow;
+    prev.ability = abilityNow;
+    prev.crouch = crouchNow;
+    prev.throw = throwNow;
     prev.start = startNow;
     prev.pause = pauseNow;
+    throwPulse = false;
+    abilityPulse = false;
+    crouchPulse = false;
+    pick = 0;
+    aimX = 0;
+    aimY = 0;
     if (world.mode !== "play" && stickId !== null) clearStick();
     pulses.start = false;
     pulses.pause = false;
@@ -373,20 +538,18 @@ function boot(art: ArtBook): void {
     if (world.mode === "title" && inp.startP && !ready(levelPaths(1))) {
       inp.startP = false;
       pending = { kind: "begin" };
-      showWait("Loading this chapter…");
+      showWait("Loading this mission…");
       void ensure(levelPaths(1), "high");
-    } else if (world.mode === "done" && (inp.startP || inp.jumpP)) {
-      if (world.level >= 5 && !ready(finalePaths())) {
+    } else if (world.mode === "done" && inp.startP) {
+      if (world.level >= LEVELS && !ready(finalePaths())) {
         inp.startP = false;
-        inp.jumpP = false;
         pending = { kind: "finale" };
         showWait("Loading the finale…");
         void ensure(finalePaths(), "high");
-      } else if (world.level < 5 && !ready(levelPaths(world.level + 1))) {
+      } else if (world.level < LEVELS && !ready(levelPaths(world.level + 1))) {
         inp.startP = false;
-        inp.jumpP = false;
         pending = { kind: "begin" };
-        showWait("Loading this chapter…");
+        showWait("Loading this mission…");
         void ensure(levelPaths(world.level + 1), "high");
       }
     }
@@ -399,19 +562,17 @@ function boot(art: ArtBook): void {
       else if (edge && inp.pauseP && world.mode === "pause") world.mode = "play";
       const sub: Inp = edge ? inp : {
         ...inp,
-        jumpP: false, atkP: false, atkR: false, dashP: false, dodgeP: false, actP: false, startP: false, pauseP: false,
+        crouchP: false, actP: false, throwP: false, abilityP: false, startP: false, pauseP: false, pick: 0,
       };
       tick(world, sub, STEP);
-      if (world.mode !== "pause") {
-        stepParts(world.parts, STEP, false);
-        if (world.rainOn || world.mode === "title" || world.mode === "select") stepParts(world.rain, STEP, true);
-      }
       steps += 1;
     }
     if (steps === 5) acc = 0;
 
     ctx.clearRect(0, 0, VW, VH);
     drawWorld(ctx, world, art);
+    syncHud();
+    syncChoice();
     syncUi();
     requestAnimationFrame(loop);
   };
@@ -443,7 +604,7 @@ function mustEl(id: string): HTMLElement {
 
 const loadingMsg = document.getElementById("loading-msg");
 ensure(titlePaths(), "high").then(() => {
-  boot(art);
+  boot();
   void ensure(levelPaths(1), "high")
     .then(() => ensure(deferredPaths(), "low"))
     .catch(() => undefined);
