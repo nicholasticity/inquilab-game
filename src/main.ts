@@ -1,4 +1,5 @@
-import { allAssetPaths, assetUrl, BG_PATHS, FRAME_PATHS, PORTRAIT_PATHS } from "./assets";
+import { deferredPaths, finalePaths, levelPaths, titlePaths } from "./assets";
+import { urlForPath } from "./art-urls";
 import { drawWorld, type ArtBook } from "./draw";
 import {
   applyLevel,
@@ -32,36 +33,49 @@ function emptyHold(): Hold {
   return { l: false, r: false, u: false, d: false, jump: false, atk: false, dash: false, dodge: false };
 }
 
-function loadImage(path: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const im = new Image();
-    im.onload = () => {
-      if (im.naturalWidth > 0) resolve(im);
-      else reject(new Error("Empty image: " + path));
-    };
-    im.onerror = () => reject(new Error("Missing image: " + path));
-    im.src = assetUrl(path);
-  });
+const art: ArtBook = { bg: {}, portrait: {}, frame: {} };
+const loaded = new Map<string, HTMLImageElement>();
+const inflight = new Map<string, Promise<void>>();
+
+function place(path: string, im: HTMLImageElement): void {
+  const url = urlForPath(path);
+  if (path.startsWith("assets/bg/")) art.bg[path.slice("assets/bg/".length, -".webp".length)] = im;
+  else if (path.startsWith("assets/portraits/")) art.portrait[path.slice("assets/portraits/".length, -".webp".length)] = im;
+  else if (path.startsWith("assets/frames/")) art.frame[path.slice("assets/frames/".length, -".webp".length)] = im;
+  loaded.set(url, im);
 }
 
-async function loadArt(): Promise<ArtBook> {
-  const book: ArtBook = { bg: {}, portrait: {}, frame: {} };
-  const jobs: Promise<void>[] = [];
-  const take = (bucket: Record<string, HTMLImageElement>, table: Record<string, string>) => {
-    for (const key of Object.keys(table)) {
-      const path = table[key];
-      if (!path) continue;
-      jobs.push(loadImage(path).then((im) => { bucket[key] = im; }));
+function loadOne(path: string, priority: "high" | "low"): Promise<void> {
+  const url = urlForPath(path);
+  if (loaded.has(url)) return Promise.resolve();
+  const existing = inflight.get(url);
+  if (existing) return existing;
+  const job = (async () => {
+    const im = new Image();
+    im.decoding = "async";
+    im.fetchPriority = priority;
+    im.src = url;
+    try {
+      await im.decode();
+    } catch {
+      throw new Error("Missing image: " + path);
     }
-  };
-  take(book.bg, BG_PATHS);
-  take(book.portrait, PORTRAIT_PATHS);
-  take(book.frame, FRAME_PATHS);
-  await Promise.all(jobs);
-  const expected = allAssetPaths().length;
-  const got = Object.keys(book.bg).length + Object.keys(book.portrait).length + Object.keys(book.frame).length;
-  if (got !== expected) throw new Error("Art book is incomplete");
-  return book;
+    if (im.naturalWidth <= 0) throw new Error("Empty image: " + path);
+    place(path, im);
+  })().catch((err: unknown) => {
+    inflight.delete(url);
+    throw err;
+  });
+  inflight.set(url, job);
+  return job;
+}
+
+function ensure(paths: string[], priority: "high" | "low"): Promise<void> {
+  return Promise.all(paths.map((path) => loadOne(path, priority))).then(() => undefined);
+}
+
+function ready(paths: string[]): boolean {
+  return paths.every((path) => loaded.has(urlForPath(path)));
 }
 
 function boot(art: ArtBook): void {
@@ -81,7 +95,30 @@ function boot(art: ArtBook): void {
   const titleUi = mustEl("title-ui");
   const chapterUi = mustEl("chapter-ui");
   const pauseUi = mustEl("pause-ui");
+  const chapterWait = mustEl("chapter-wait");
   const chapterButtons: HTMLButtonElement[] = [];
+  type Pending = { kind: "begin" } | { kind: "pick"; n: number } | { kind: "finale" };
+  let pending: Pending | null = null;
+
+  const showWait = (text: string) => {
+    chapterWait.textContent = text;
+    chapterWait.hidden = false;
+  };
+  const hideWait = () => { chapterWait.hidden = true; };
+
+  const requestLevel = (n: number) => {
+    if (world.mode !== "title" && world.mode !== "select") return;
+    if (n < 1 || n > 5 || n > world.unlocked) return;
+    if (ready(levelPaths(n))) {
+      pending = null;
+      hideWait();
+      applyLevel(world, n, n === 5 ? "l5" : "l" + String(n));
+      return;
+    }
+    pending = { kind: "pick", n };
+    showWait("Loading this chapter…");
+    void ensure(levelPaths(n), "high");
+  };
 
   for (let n = 1; n <= 5; n++) {
     const btn = document.createElement("button");
@@ -91,9 +128,7 @@ function boot(art: ArtBook): void {
     btn.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (n <= world.unlocked && (world.mode === "select" || world.mode === "title")) {
-        applyLevel(world, n, n === 5 ? "l5" : "l" + String(n));
-      }
+      requestLevel(n);
     });
     chapterUi.appendChild(btn);
     chapterButtons.push(btn);
@@ -169,9 +204,7 @@ function boot(art: ArtBook): void {
     if (e.repeat) return;
     if (k >= "1" && k <= "5") {
       const n = parseInt(k, 10);
-      if ((world.mode === "title" || world.mode === "select") && n <= world.unlocked) {
-        applyLevel(world, n, n === 5 ? "l5" : "l" + String(n));
-      }
+      requestLevel(n);
     }
   });
   window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
@@ -195,6 +228,24 @@ function boot(art: ArtBook): void {
   const loop = (now: number) => {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    if (pending?.kind === "begin" && world.mode === "title" && ready(levelPaths(1))) {
+      pending = null;
+      hideWait();
+      pulses.start = true;
+    } else if (pending?.kind === "begin" && world.mode === "done" && world.level < 5 && ready(levelPaths(world.level + 1))) {
+      pending = null;
+      hideWait();
+      pulses.start = true;
+    } else if (pending?.kind === "finale" && world.mode === "done" && ready(finalePaths())) {
+      pending = null;
+      hideWait();
+      pulses.start = true;
+    } else if (pending?.kind === "pick" && (world.mode === "title" || world.mode === "select") && ready(levelPaths(pending.n))) {
+      const n = pending.n;
+      pending = null;
+      hideWait();
+      if (n <= world.unlocked) applyLevel(world, n, n === 5 ? "l5" : "l" + String(n));
+    }
     const down = (k: string) => keys[k] === true;
     const jumpNow = down(" ") || down("space") || down("arrowup") || down("w") || hold.jump;
     const atkNow = down("j") || down("x") || hold.atk;
@@ -227,6 +278,27 @@ function boot(art: ArtBook): void {
     prev.pause = pauseNow;
     pulses.start = false;
     pulses.pause = false;
+
+    if (world.mode === "title" && inp.startP && !ready(levelPaths(1))) {
+      inp.startP = false;
+      pending = { kind: "begin" };
+      showWait("Loading this chapter…");
+      void ensure(levelPaths(1), "high");
+    } else if (world.mode === "done" && (inp.startP || inp.jumpP)) {
+      if (world.level >= 5 && !ready(finalePaths())) {
+        inp.startP = false;
+        inp.jumpP = false;
+        pending = { kind: "finale" };
+        showWait("Loading the finale…");
+        void ensure(finalePaths(), "high");
+      } else if (world.level < 5 && !ready(levelPaths(world.level + 1))) {
+        inp.startP = false;
+        inp.jumpP = false;
+        pending = { kind: "begin" };
+        showWait("Loading this chapter…");
+        void ensure(levelPaths(world.level + 1), "high");
+      }
+    }
 
     if (inp.pauseP && (world.mode === "play" || world.mode === "endure")) world.mode = "pause";
     else if (inp.pauseP && world.mode === "pause") world.mode = world.level === 5 ? "endure" : "play";
@@ -269,7 +341,12 @@ function mustEl(id: string): HTMLElement {
 }
 
 const loadingMsg = document.getElementById("loading-msg");
-loadArt().then(boot).catch((err: unknown) => {
+ensure(titlePaths(), "high").then(() => {
+  boot(art);
+  void ensure(levelPaths(1), "high")
+    .then(() => ensure(deferredPaths(), "low"))
+    .catch(() => undefined);
+}).catch((err: unknown) => {
   const msg = err instanceof Error ? err.message : "Could not load the paintings";
   if (loadingMsg) loadingMsg.textContent = msg;
 });

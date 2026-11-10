@@ -56,9 +56,11 @@ In the Render Dashboard, create a **Static Site** from this repository:
 
 `render.yaml` is the same Blueprint. The site is a single page, so it does not need a rewrite rule. Node 22 is set for the build with `NODE_VERSION`.
 
+The built JavaScript, CSS, and paintings are content-hashed under `dist/static/`. The Blueprint tells Render to cache those for a year (`Cache-Control: public, max-age=31536000, immutable`). `index.html` is served with `no-cache`, so a new deploy picks up the new filenames. Render also drops its CDN cache on every deploy.
+
 ## Art
 
-Scenes and portraits are the painted webps. Sprite frames are the high-resolution cut paintings, resized and saved as transparent webp. The game does not fetch anything except those files.
+Scenes and portraits are the painted webps. Sprite frames are the same cut paintings, saved at 273 pixels tall — twice the height they are drawn on the 960×540 canvas, which matches a sharp screen. The title opens as soon as its painting is in. Chapter 1’s painting, portraits, and frames load next, and the later chapters load while you play. The game does not fetch anything except those files.
 
 A few poses were never painted, and the game uses the frame the original did:
 

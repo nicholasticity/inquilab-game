@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { allAssetPaths } from "./assets";
+import { allAssetPaths, deferredPaths, finalePaths, levelPaths, titlePaths } from "./assets";
 import {
   advanceFromDone,
   applyLevel,
@@ -21,9 +21,20 @@ function assert(cond: boolean, msg: string): void {
 }
 
 function checkAssets(): void {
-  const root = path.resolve("public");
-  const missing = allAssetPaths().filter((rel) => !fs.existsSync(path.join(root, rel)));
+  const missing = allAssetPaths().filter((rel) => !fs.existsSync(path.resolve("src/art", rel.slice("assets/".length))));
   assert(missing.length === 0, "Missing assets: " + missing.join(", "));
+  assert(allAssetPaths().length === 28, "Expected 28 paintings");
+  const covered = new Set<string>([...titlePaths(), ...levelPaths(1), ...deferredPaths()]);
+  assert(covered.size === allAssetPaths().length, "Load groups should cover every painting once");
+  for (const rel of allAssetPaths()) assert(covered.has(rel), "Uncovered painting " + rel);
+  assert(titlePaths().join() === "assets/bg/title.webp", "Title should wait on its painting only");
+  const first = levelPaths(1).join(" ");
+  assert(first.includes("assets/bg/lahore.webp") && first.includes("player_idle") && !first.includes("durga") && !first.includes("finale"), "Chapter 1 set");
+  assert(levelPaths(2).some((rel) => rel.includes("durga_walk")), "Chapter 2 should include Durga");
+  assert(finalePaths().join() === "assets/bg/finale.webp", "Finale painting");
+  for (const level of [1, 2, 3, 4, 5]) {
+    for (const rel of levelPaths(level)) assert(rel.length > 0 && allAssetPaths().includes(rel), "Bad path in level " + String(level));
+  }
 }
 
 function pressStart(): Inp {

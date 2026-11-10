@@ -1,4 +1,4 @@
-/** Paths under public/, no leading slash. */
+/** Logical painting paths. The files live in src/art and Vite content-hashes them. */
 export const BG_PATHS: Record<string, string> = {
   title: "assets/bg/title.webp",
   lahore: "assets/bg/lahore.webp",
@@ -36,14 +36,77 @@ export const FRAME_PATHS: Record<string, string> = {
   durga_walk: "assets/frames/durga_walk.webp",
 };
 
-export function assetUrl(path: string): string {
-  return import.meta.env.BASE_URL + path;
-}
-
 export function allAssetPaths(): string[] {
   return [
     ...Object.values(BG_PATHS),
     ...Object.values(PORTRAIT_PATHS),
     ...Object.values(FRAME_PATHS),
   ];
+}
+
+const COMBAT_FRAMES = [
+  "player_idle", "player_run1", "player_run2", "player_jump", "player_attack",
+  "player_dash", "player_dodge", "player_hit", "player_down",
+  "officer_idle", "officer_attack", "officer_down", "constable_attack",
+];
+
+const PLAYER_FRAMES = [
+  "player_idle", "player_run1", "player_run2", "player_jump", "player_attack",
+  "player_dash", "player_dodge", "player_hit", "player_down",
+];
+
+function frames(keys: string[]): string[] {
+  return keys.map((key) => {
+    const path = FRAME_PATHS[key];
+    if (!path) throw new Error("Missing frame " + key);
+    return path;
+  });
+}
+
+/** Painted files the title canvas needs before it can open. */
+export function titlePaths(): string[] {
+  return [BG_PATHS.title ?? ""].filter((path) => path.length > 0);
+}
+
+/** Painted files a chapter draws. Later chapters reuse the chapter 1 frames. */
+export function levelPaths(level: number): string[] {
+  if (level === 1) {
+    return [BG_PATHS.lahore ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.sukhdev ?? "", ...frames(COMBAT_FRAMES)];
+  }
+  if (level === 2) {
+    return [
+      BG_PATHS.station ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.durga ?? "",
+      ...frames(COMBAT_FRAMES), FRAME_PATHS.durga_idle ?? "", FRAME_PATHS.durga_walk ?? "",
+    ];
+  }
+  if (level === 3) {
+    return [BG_PATHS.press ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.azad ?? "", ...frames(COMBAT_FRAMES)];
+  }
+  if (level === 4) {
+    return [BG_PATHS.assembly ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.dutt ?? "", ...frames(COMBAT_FRAMES)];
+  }
+  if (level === 5) {
+    return [BG_PATHS.cell ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.jatin ?? "", ...frames(PLAYER_FRAMES)];
+  }
+  return [];
+}
+
+export function finalePaths(): string[] {
+  return [BG_PATHS.finale ?? ""].filter((path) => path.length > 0);
+}
+
+/** Everything except the title and chapter 1, in chapter order. */
+export function deferredPaths(): string[] {
+  const seen = new Set<string>([...titlePaths(), ...levelPaths(1)]);
+  const out: string[] = [];
+  const push = (paths: string[]) => {
+    for (const path of paths) {
+      if (!path || seen.has(path)) continue;
+      seen.add(path);
+      out.push(path);
+    }
+  };
+  for (const level of [2, 3, 4, 5]) push(levelPaths(level));
+  push(finalePaths());
+  return out;
 }

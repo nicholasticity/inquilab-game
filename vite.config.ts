@@ -8,5 +8,6 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "static",
     sourcemap: false,
+    assetsInlineLimit: 0,
   },
 });

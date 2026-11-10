@@ -4,13 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="description" content="Inquilab — a non-lethal action chronicle of Bhagat Singh, 1928–1931." />
+  <link rel="icon" href="data:,">
   <title>Inquilab</title>
+  <link rel="preload" as="image" href="./src/art/bg/title.webp" fetchpriority="high" />
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
   <div id="loading">
     <p class="loading-title">INQUILAB</p>
-    <p id="loading-msg">Loading the paintings…</p>
+    <p id="loading-msg">Loading…</p>
   </div>
   <div id="stage">
     <div id="frame">
@@ -33,6 +35,7 @@
         <button type="button" id="btn-pause" aria-label="Pause">II</button>
         <button type="button" id="btn-continue">Continue</button>
       </div>
+      <p id="chapter-wait" hidden>Loading this chapter…</p>
       <div id="title-ui">
         <button type="button" id="btn-begin">Begin</button>
         <button type="button" id="btn-chapters">Chapters</button>
