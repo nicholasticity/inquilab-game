@@ -40,9 +40,12 @@ function drawSprite(
   ctx.save();
   ctx.translate(x, footY);
   ctx.scale(face < 0 ? -1 : 1, 1);
-  if (flash) ctx.filter = "brightness(1.8)";
   ctx.drawImage(img, -dw / 2, -dh, dw, dh);
-  ctx.filter = "none";
+  if (flash) {
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+  }
   ctx.restore();
 }
 
@@ -103,10 +106,13 @@ export function drawWorld(ctx: CanvasRenderingContext2D, w: World, art: ArtBook)
   for (let i = 0; i < w.plats.length; i++) {
     const pl = w.plats[i];
     if (!pl || pl.x + pl.w < w.camX - 20 || pl.x > w.camX + VW + 20) continue;
-    ctx.fillStyle = pl.t === 1 ? "rgba(18,14,16,0.42)" : "rgba(12,10,12,0.62)";
+    const ceiling = pl.t === 2 || pl.t === 5;
+    ctx.fillStyle = pl.t === 4 ? "rgba(90,70,40,0.85)" : ceiling ? "rgba(28,22,18,0.9)" : pl.t === 1 ? "rgba(18,14,16,0.42)" : "rgba(12,10,12,0.62)";
     ctx.fillRect(pl.x, pl.y, pl.w, Math.min(pl.h, 90));
-    ctx.fillStyle = "rgba(226,188,122,0.8)";
-    ctx.fillRect(pl.x, pl.y, pl.w, 3);
+    if (!ceiling) {
+      ctx.fillStyle = "rgba(226,188,122,0.8)";
+      ctx.fillRect(pl.x, pl.y, pl.w, 3);
+    }
     if (pl.t === 2) {
       ctx.fillStyle = "rgba(80,56,40,0.7)";
       ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
@@ -147,11 +153,26 @@ export function drawWorld(ctx: CanvasRenderingContext2D, w: World, art: ArtBook)
     ctx.fillStyle = grd;
     ctx.fillRect(w.fireX - 220, 0, 280, VH);
   }
+  for (let i = 0; i < w.ghosts.length; i++) {
+    const g = w.ghosts[i];
+    if (!g) continue;
+    ctx.globalAlpha = g.life * 0.45;
+    drawSprite(ctx, art.frame[g.frame], g.x, g.y, g.face, 0, false);
+    ctx.globalAlpha = 1;
+  }
   for (let i = 0; i < w.foes.length; i++) {
     const e = w.foes[i];
-    if (!e) continue;
+    if (!e || e.ai === "wait") continue;
+    drawTell(ctx, e, w);
     const flash = (e.ai === "telegraph" && Math.floor(w.t * 14) % 2 === 0) || (e.inv > 0 && e.st === "hit");
-    drawActor(ctx, art, e, foeFrame(e), flash);
+    const scale = e.kind === "inspector" ? 1.12 : 1;
+    drawActor(ctx, art, e, foeFrame(e), flash, scale);
+  }
+  for (let i = 0; i < w.bolts.length; i++) {
+    const b = w.bolts[i];
+    if (!b) continue;
+    ctx.fillStyle = "#e7c56a";
+    ctx.fillRect(b.x, b.y, 14, 4);
   }
   if (w.ally && w.ally.hp > 0) {
     drawActor(ctx, art, w.ally, allyFrame(w.ally), w.ally.inv > 0 && w.ally.st === "hit");
@@ -159,7 +180,20 @@ export function drawWorld(ctx: CanvasRenderingContext2D, w: World, art: ArtBook)
   const p = w.player;
   const blink = p.inv > 0 && p.st !== "down" && Math.floor(w.t * 18) % 2 === 0;
   if (!blink || p.st === "dodge") {
-    drawActor(ctx, art, p, playerFrame(p, w.t), p.st === "hit");
+    if (w.focus > 0) {
+      ctx.strokeStyle = "rgba(255, 220, 140, 0.85)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(p.x - 4, p.y - 6, p.w + 8, p.h + 8);
+    }
+    drawActor(ctx, art, p, playerFrame(p, w.t), p.st === "hit" || w.focus > 0.2);
+  }
+  if (w.level === 4 && w.gallery && w.leaflets >= 8) {
+    ctx.strokeStyle = "rgba(240,210,140,0.7)";
+    ctx.strokeRect(2920 - 56, 440 - 8, 112, 10);
+  }
+  if (w.fast && w.breadOn && w.days >= 90 && w.days < 112 && !w.broke) {
+    ctx.fillStyle = "#e6d2a4";
+    ctx.fillRect(w.breadX, 452, 18, 10);
   }
   if (p.x > w.exitX - 160 && w.level !== 4 && w.level !== 5) {
     ctx.fillStyle = "rgba(240,210,140,0.12)";
@@ -177,8 +211,54 @@ function drawActor(
   e: Ent,
   frame: string,
   flash: boolean,
+  scale = 1,
 ): void {
-  drawSprite(ctx, art.frame[frame], e.x + e.w * 0.5, e.y + e.h + 1, e.face, e.squash, flash);
+  const foot = e.y + e.h + 1;
+  if (scale === 1) {
+    drawSprite(ctx, art.frame[frame], e.x + e.w * 0.5, foot, e.face, e.squash, flash);
+    return;
+  }
+  ctx.save();
+  ctx.translate(e.x + e.w * 0.5, foot);
+  ctx.scale(scale, scale);
+  ctx.translate(-(e.x + e.w * 0.5), -foot);
+  drawSprite(ctx, art.frame[frame], e.x + e.w * 0.5, foot, e.face, e.squash, flash);
+  ctx.restore();
+}
+
+function drawTell(ctx: CanvasRenderingContext2D, e: Ent, w: World): void {
+  if (e.hp <= 0) return;
+  if (e.kind === "shield" || (e.kind === "inspector" && e.ai === "guard")) {
+    ctx.strokeStyle = "rgba(210, 190, 150, 0.85)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    const cx = e.x + e.w * 0.5 + e.face * 18;
+    ctx.arc(cx, e.y + 36, 22, e.face > 0 ? -0.8 : Math.PI - 0.8, e.face > 0 ? 0.8 : Math.PI + 0.8);
+    ctx.stroke();
+  }
+  if (e.ai === "aim") {
+    ctx.strokeStyle = "rgba(226, 80, 50, 0.75)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(e.x + e.w * 0.5, e.y + 28);
+    ctx.lineTo(w.player.x + w.player.w * 0.5, w.player.y + 24);
+    ctx.stroke();
+  }
+  if (e.tag === "watch" && e.ai === "watch") {
+    ctx.fillStyle = "rgba(226, 188, 122, 0.08)";
+    ctx.beginPath();
+    ctx.moveTo(e.x + e.w * 0.5, e.y + 24);
+    ctx.lineTo(e.x + e.face * 180, e.y - 20);
+    ctx.lineTo(e.x + e.face * 180, e.y + 70);
+    ctx.fill();
+  }
+  if ((e.ai === "telegraph" || e.ai === "aim") && e.telMax > 0) {
+    const u = clamp(e.stT / e.telMax, 0, 1);
+    ctx.fillStyle = "rgba(20,12,12,0.7)";
+    ctx.fillRect(e.x, e.y - 12, e.w, 4);
+    ctx.fillStyle = u > 0.72 ? "#e24b3a" : "#e8c56a";
+    ctx.fillRect(e.x, e.y - 12, e.w * u, 4);
+  }
 }
 
 function drawFX(ctx: CanvasRenderingContext2D, w: World): void {
@@ -221,7 +301,7 @@ function drawChrome(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void
     ctx.font = "16px system-ui, sans-serif";
     ctx.fillStyle = "#c8b090";
     ctx.fillText(w.mode === "select" ? "Choose a chapter" : "Press Space or Enter to begin    P for chapters", 68, 280);
-    ctx.fillText("WASD / Arrows move    Space jump    J/X attack    K/C dash    L/Shift dodge", 68, 418);
+    ctx.fillText("Move   Jump   Tap attack   Hold attack for heavy   Dodge   Dash", 68, 418);
     return;
   }
   if (w.mode === "finale") {
@@ -240,11 +320,7 @@ function drawChrome(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void
     if (w.t > 6) ctx.fillText("Press Space to return", 70, 470);
     return;
   }
-  if (w.mode === "endure" || (w.mode === "talk" && w.level === 5)) {
-    ctx.fillStyle = "rgba(8,6,8,0.28)";
-    ctx.fillRect(0, 0, VW, VH);
-  }
-  if (w.mode === "play" || w.mode === "dead" || w.mode === "done" || w.mode === "pause" || w.mode === "endure") {
+  if (w.mode === "play" || w.mode === "dead" || w.mode === "done" || w.mode === "pause") {
     const p = w.player;
     for (let i = 0; i < p.maxHp; i++) {
       ctx.fillStyle = i < p.hp ? "#e24b3a" : "rgba(40,20,20,0.6)";
@@ -268,29 +344,25 @@ function drawChrome(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void
       ctx.fillStyle = "#d7b4e0";
       ctx.fillRect(24, 88, 80 * (w.ally.hp / w.ally.maxHp), 5);
     }
-  }
-  if (w.mode === "endure") {
-    ctx.fillStyle = "rgba(12,10,12,0.55)";
-    ctx.fillRect(VW * 0.2, 150, VW * 0.6, 18);
-    ctx.fillStyle = "#e8c56a";
-    ctx.fillRect(VW * 0.2, 150, VW * 0.6 * (w.resolve / 100), 18);
-    ctx.fillStyle = "#f3e6c0";
-    ctx.font = "18px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillText("RESOLVE", VW * 0.2, 122);
-    ctx.fillText("Day " + String(w.days), VW * 0.68, 122);
-    if (w.qte) {
-      ctx.fillStyle = w.qteHit ? "#b6e39a" : "#f3ddb0";
-      ctx.font = "700 48px system-ui, sans-serif";
-      ctx.fillText(w.qte, VW * 0.5 - 60, 230);
+    if (w.focus > 0) {
+      ctx.fillStyle = "#ffe08a";
+      ctx.fillRect(24, 98, 70 * clamp(w.focus / 1.7, 0, 1), 4);
+    }
+    if (w.level === 4 && w.gallery) {
+      ctx.fillStyle = w.alarm >= 100 ? "#e24b3a" : "#c8b090";
+      ctx.fillRect(VW - 180, 52, 140 * clamp(w.alarm / 100, 0, 1), 4);
+    }
+    if (w.fast) {
+      ctx.fillStyle = "#f3e6c0";
+      ctx.font = "16px Georgia, 'Iowan Old Style', Palatino, serif";
+      ctx.fillText("Day " + String(w.days), VW - 140, 20);
+    }
+    if (w.hint && w.mode === "play") {
+      ctx.fillStyle = "rgba(10,8,8,0.55)";
+      ctx.fillRect(24, 112, 520, 22);
+      ctx.fillStyle = "#f6e6c0";
       ctx.font = "14px system-ui, sans-serif";
-      ctx.fillStyle = "#c8b090";
-      ctx.fillText(qteHint(w.qte), VW * 0.5 - 90, 292);
-      ctx.fillStyle = "rgba(240,220,170,0.35)";
-      ctx.fillRect(VW * 0.3, 320, VW * 0.4 * clamp(w.qteT / 1.15, 0, 1), 8);
-    } else {
-      ctx.font = "14px system-ui, sans-serif";
-      ctx.fillStyle = "#c8b090";
-      ctx.fillText("Attack J/X   Dash K/C   Dodge L   Jump Space   Left / Right", VW * 0.2, 188);
+      ctx.fillText(w.hint, 32, 116);
     }
   }
   if (w.bannerT > 0 && w.banner) {
@@ -325,28 +397,18 @@ function drawChrome(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void
     ctx.font = "700 36px Georgia, 'Iowan Old Style', Palatino, serif";
     ctx.fillText("CHAPTER CLEAR", 70, 160);
     ctx.font = "18px system-ui, sans-serif";
-    ctx.fillText("Time  " + w.time.toFixed(1) + "s", 74, 220);
-    ctx.fillText("Score  " + String(w.score), 74, 248);
+    ctx.fillText("Rank  " + w.rank + "     Time  " + w.time.toFixed(1) + "s", 74, 220);
+    ctx.fillText("Score  " + String(w.score) + "     Perfect reads  " + String(w.perfects), 74, 248);
     ctx.fillText("Disarmed  " + String(w.disarmed) + "    Best combo  " + String(w.maxCombo), 74, 276);
     ctx.fillText("Hits taken  " + String(w.hitsTaken), 74, 304);
     ctx.fillText("Press Space to continue", 74, 360);
   }
-  if (w.caption && (w.mode === "play" || w.mode === "talk" || w.mode === "endure") && w.level > 0) {
+  if (w.caption && w.mode === "play" && w.level > 0) {
     ctx.fillStyle = "rgba(232,210,170,0.72)";
     ctx.font = "12px Georgia, 'Iowan Old Style', Palatino, serif";
     const cap = w.caption || (CAPTION[w.level] ?? "");
-    if (cap) ctx.fillText(cap, 24, VH - 72);
+    if (cap) ctx.fillText(cap, 24, VH - 118);
   }
-}
-
-function qteHint(tag: string): string {
-  if (tag === "J" || tag === "X") return "Attack";
-  if (tag === "K" || tag === "C") return "Dash";
-  if (tag === "L") return "Dodge";
-  if (tag === "SPACE") return "Jump";
-  if (tag === "LEFT") return "Left";
-  if (tag === "RIGHT") return "Right";
-  return tag;
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, max: number, lh: number): void {
