@@ -1,7 +1,7 @@
 {
   "name": "Inquilab",
   "short_name": "Inquilab",
-  "description": "A top-down stealth uprising. Netaji's spies open the road, and the Raj falls.",
+  "description": "A turn-based stealth game. Netaji's spies cross the roofs and the rail yard.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
