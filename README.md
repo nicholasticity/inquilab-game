@@ -39,7 +39,7 @@ Desktop:
 | Chapters | P, or 1–5 once a chapter is unlocked |
 | Pause | Esc or P |
 
-Touch, landscape: a floating stick on the left half. Flick it to dash. Attack, Jump, Dodge, and Dash sit in an arc under the right thumb. Dash becomes Slide while the stick is down, and Throw in the Assembly gallery. Hold Attack, then let go, for the heavy. The portrait hint asks you to turn the phone; the buttons still work upright. Tap the picture to advance dialogue and to continue after a chapter.
+Touch: the game asks for landscape fullscreen on the first tap. Where the phone cannot lock landscape, a rotate card covers the screen until you turn it. A stick sits on the left, with Attack in the bottom-right corner and Jump, Dodge, and Dash in an arc around it. Throw appears in the Assembly gallery. Hold Attack, then let go, for the heavy. Pause to change button size, opacity, or hand. Flick the stick to dash. Hold Down and dash to slide. Tap the picture to advance dialogue and to continue after a chapter. The corner buttons are the list in `src/hud.ts`: each entry names its input, its slot on the arc, and when it shows.
 
 ## Run locally
 
