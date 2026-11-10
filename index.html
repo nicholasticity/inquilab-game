@@ -2,14 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="description" content="Inquilab — a non-lethal action chronicle of Bhagat Singh, 1928–1931." />
+  <meta name="theme-color" content="#100c0e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Inquilab" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:,">
   <title>Inquilab</title>
   <link rel="preload" as="image" href="./src/art/bg/title.webp" fetchpriority="high" />
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
+  <div id="rotate" role="dialog" aria-label="Rotate your phone">
+    <div class="rotate-phone" aria-hidden="true">
+      <div class="rotate-notch"></div>
+      <div class="rotate-glass"></div>
+    </div>
+    <p class="rotate-title">Rotate your phone</p>
+    <p class="rotate-sub">Inquilab plays in landscape</p>
+  </div>
   <div id="loading">
     <p class="loading-title">INQUILAB</p>
     <p id="loading-msg">Loading…</p>
@@ -18,18 +32,17 @@
     <div id="frame">
       <canvas id="game" width="960" height="540" aria-label="Inquilab"></canvas>
       <div id="touch">
+        <div id="stick-idle" aria-hidden="true">
+          <span class="touch-hint" data-hint="move" hidden>Move</span>
+        </div>
         <div id="stick" hidden>
           <div id="stick-base"></div>
           <div id="stick-knob"></div>
         </div>
-        <div class="actions">
-          <button type="button" data-hold="act" id="btn-act" class="act-dash">Dash</button>
-          <button type="button" data-hold="jump" class="act-jump">Jump</button>
-          <button type="button" data-hold="dodge" class="act-dodge">Dodge</button>
-          <button type="button" data-hold="atk" class="act-atk">Attack</button>
-        </div>
-        <p id="turn-hint">Turn sideways</p>
-        <button type="button" id="btn-pause" aria-label="Pause">II</button>
+        <div id="actions" class="actions"></div>
+        <button type="button" id="btn-pause" aria-label="Pause">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M10 6h4v20h-4V6zm8 0h4v20h-4V6z"/></svg>
+        </button>
         <button type="button" id="btn-continue">Continue</button>
       </div>
       <p id="chapter-wait" hidden>Loading this chapter…</p>
@@ -43,6 +56,22 @@
         <button type="button" id="btn-resume">Resume</button>
         <button type="button" id="btn-retry">Retry checkpoint</button>
         <button type="button" id="btn-level-select">Level select</button>
+        <div class="settings">
+          <p class="settings-label">Controls</p>
+          <div class="settings-row">
+            <span>Size</span>
+            <button type="button" data-size="s">S</button>
+            <button type="button" data-size="m">M</button>
+            <button type="button" data-size="l">L</button>
+          </div>
+          <div class="settings-row">
+            <span>Opacity</span>
+            <button type="button" data-opacity="low">Low</button>
+            <button type="button" data-opacity="mid">Mid</button>
+            <button type="button" data-opacity="high">High</button>
+          </div>
+          <button type="button" id="btn-hands">Left hand</button>
+        </div>
       </div>
     </div>
   </div>

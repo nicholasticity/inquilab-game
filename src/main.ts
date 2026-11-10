@@ -1,9 +1,12 @@
 import { deferredPaths, finalePaths, levelPaths, titlePaths } from "./assets";
+import { HUD_BUTTONS, mountHudButtons } from "./hud";
 import { urlForPath } from "./art-urls";
 import { drawWorld, type ArtBook } from "./draw";
 import {
   applyLevel,
   blankInp,
+  DASH_COOL,
+  DODGE_COOL,
   fresh,
   LNAME,
   respawn,
@@ -94,7 +97,8 @@ function boot(art: ArtBook): void {
   const frame = mustEl("frame");
   const stickEl = mustEl("stick");
   const knobEl = mustEl("stick-knob");
-  const actBtn = mustEl("btn-act");
+  const idleEl = mustEl("stick-idle");
+  const hudButtons = mountHudButtons(mustEl("actions"));
   let stickId: number | null = null;
   let flick = false;
   let prevKnob = 0;
@@ -106,6 +110,7 @@ function boot(art: ArtBook): void {
     hold.u = false;
     hold.d = false;
     stickEl.hidden = true;
+    idleEl.hidden = false;
     knobEl.style.transform = "translate(0px, 0px)";
   };
   const aimStick = (clientX: number, clientY: number, originX: number, originY: number) => {
@@ -135,13 +140,17 @@ function boot(art: ArtBook): void {
     if (document.body.dataset.mode !== "play") return;
     if (e.target instanceof Element && e.target.closest("button")) return;
     const rect = frame.getBoundingClientRect();
-    if (e.clientX - rect.left > rect.width * 0.48) return;
+    const localX = e.clientX - rect.left;
+    const handsLeft = document.body.classList.contains("hands-left");
+    const inStick = handsLeft ? localX > rect.width * 0.52 : localX < rect.width * 0.48;
+    if (!inStick) return;
     stickId = e.pointerId;
     originX = e.clientX;
     originY = e.clientY;
     prevKnob = 0;
     prevKnobT = performance.now();
     stickEl.hidden = false;
+    idleEl.hidden = true;
     stickEl.style.left = (e.clientX - rect.left) + "px";
     stickEl.style.top = (e.clientY - rect.top) + "px";
     frame.setPointerCapture(e.pointerId);
@@ -291,6 +300,8 @@ function boot(art: ArtBook): void {
   });
 
   const fit = () => {
+    const viewH = window.visualViewport?.height ?? window.innerHeight;
+    document.documentElement.style.setProperty("--app-h", Math.round(viewH) + "px");
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(VW * dpr);
     canvas.height = Math.round(VH * dpr);
@@ -300,6 +311,131 @@ function boot(art: ArtBook): void {
   };
   fit();
   window.addEventListener("resize", fit);
+  window.visualViewport?.addEventListener("resize", fit);
+  window.visualViewport?.addEventListener("scroll", fit);
+
+  const portraitQuery = window.matchMedia("(orientation: portrait)");
+  let askedStage = false;
+  const goLandscape = () => {
+    if (askedStage) return;
+    askedStage = true;
+    const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+    const req = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+    const pendingFs = req ? Promise.resolve().then(() => req()) : Promise.resolve();
+    void pendingFs.catch(() => undefined).then(() => {
+      const orient = screen.orientation as ScreenOrientation & { lock?: (type: string) => Promise<void> };
+      if (!orient.lock) return undefined;
+      return orient.lock("landscape");
+    }).catch(() => undefined);
+  };
+  window.addEventListener("pointerdown", goLandscape, true);
+
+  type Prefs = { size: "s" | "m" | "l"; opacity: "low" | "mid" | "high"; left: boolean };
+  const prefKey = "inquilab-controls";
+  const readPrefs = (): Prefs => {
+    const fallback: Prefs = { size: "m", opacity: "high", left: false };
+    try {
+      const raw = localStorage.getItem(prefKey);
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw) as Partial<Prefs>;
+      return {
+        size: parsed.size === "s" || parsed.size === "l" ? parsed.size : "m",
+        opacity: parsed.opacity === "low" || parsed.opacity === "mid" ? parsed.opacity : "high",
+        left: parsed.left === true,
+      };
+    } catch {
+      return fallback;
+    }
+  };
+  let prefs = readPrefs();
+  const applyPrefs = () => {
+    document.documentElement.style.setProperty("--hud-scale", prefs.size === "s" ? "0.84" : prefs.size === "l" ? "1.16" : "1");
+    document.documentElement.style.setProperty("--hud-opacity", prefs.opacity === "low" ? "0.5" : prefs.opacity === "mid" ? "0.72" : "0.94");
+    document.body.classList.toggle("hands-left", prefs.left);
+    document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((btn) => {
+      btn.classList.toggle("is-on", btn.dataset.size === prefs.size);
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-opacity]").forEach((btn) => {
+      btn.classList.toggle("is-on", btn.dataset.opacity === prefs.opacity);
+    });
+    const hands = mustEl("btn-hands");
+    hands.classList.toggle("is-on", prefs.left);
+    hands.textContent = prefs.left ? "Left hand on" : "Left hand";
+    try { localStorage.setItem(prefKey, JSON.stringify(prefs)); } catch { /* private mode */ }
+  };
+  applyPrefs();
+  document.querySelectorAll<HTMLButtonElement>("[data-size]").forEach((btn) => {
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const size = btn.dataset.size;
+      if (size === "s" || size === "m" || size === "l") prefs = { ...prefs, size };
+      applyPrefs();
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-opacity]").forEach((btn) => {
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const opacity = btn.dataset.opacity;
+      if (opacity === "low" || opacity === "mid" || opacity === "high") prefs = { ...prefs, opacity };
+      applyPrefs();
+    });
+  });
+  mustEl("btn-hands").addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    prefs = { ...prefs, left: !prefs.left };
+    if (stickId !== null) clearStick();
+    applyPrefs();
+  });
+
+  const hints = document.querySelectorAll<HTMLElement>(".touch-hint");
+  let lastHint = "";
+  const syncHud = () => {
+    const throwing = world.mode === "play" && world.level === 4 && world.gallery && world.leaflets < 8;
+    for (const def of HUD_BUTTONS) {
+      const el = hudButtons.find((btn) => btn.dataset.hud === def.id);
+      if (!el) continue;
+      const on = def.show === "always" || throwing;
+      if (el.hidden === on) {
+        el.hidden = !on;
+        if (!on) {
+          hold[def.hold] = false;
+          el.classList.remove("is-down");
+        }
+      }
+      if (def.cool === "dodge") el.style.setProperty("--sweep", String(Math.max(0, Math.min(1, world.player.cool / DODGE_COOL))));
+      else if (def.cool === "dash") el.style.setProperty("--sweep", String(Math.max(0, Math.min(1, world.player.dcd / DASH_COOL))));
+    }
+    let key = "";
+    let text = "";
+    if (world.mode === "play" && world.level === 1) {
+      if (world.lesson <= 0) { key = "move"; text = "Move"; }
+      else if (world.lesson === 1) { key = "jump"; text = "Jump"; }
+      else if (world.lesson === 2) { key = "atk"; text = "Tap"; }
+      else if (world.lesson === 3) { key = "dodge"; text = "Dodge"; }
+      else if (world.lesson === 4) { key = "atk"; text = "Hold, release"; }
+    } else if (world.mode === "play" && world.level === 2 && world.player.x < 2100) {
+      key = "move";
+      text = "Stay with her";
+    } else if (throwing) {
+      key = "act";
+      text = "Throw";
+    }
+    const stamp = key + ":" + text;
+    if (stamp === lastHint) return;
+    lastHint = stamp;
+    hints.forEach((hint) => {
+      const on = hint.dataset.hint === key;
+      hint.hidden = !on;
+      if (on) hint.textContent = text;
+    });
+    idleEl.classList.remove("is-hot");
+    for (const btn of hudButtons) btn.classList.remove("is-hot");
+    const hintEl = key ? document.querySelector<HTMLElement>(`.touch-hint[data-hint="${key}"]`) : null;
+    hintEl?.parentElement?.classList.add("is-hot");
+  };
 
   let last = performance.now();
   let acc = 0;
@@ -307,7 +443,8 @@ function boot(art: ArtBook): void {
   const loop = (now: number) => {
     let frame = (now - last) / 1000;
     last = now;
-    if (frame > 0.12) frame = 0.12;
+    if (portraitQuery.matches) frame = 0;
+    else if (frame > 0.12) frame = 0.12;
     acc += frame;
     if (pending?.kind === "begin" && world.mode === "title" && ready(levelPaths(1))) {
       pending = null;
@@ -329,12 +466,10 @@ function boot(art: ArtBook): void {
     }
     const down = (k: string) => keys[k] === true;
     const throwing = world.mode === "play" && world.level === 4 && world.gallery && world.leaflets < 8;
-    const actLabel = throwing ? "Throw" : hold.d ? "Slide" : "Dash";
-    if (actBtn.textContent !== actLabel) actBtn.textContent = actLabel;
     const jumpNow = down(" ") || down("space") || down("arrowup") || down("w") || hold.jump;
     const atkNow = down("j") || down("x") || hold.atk;
     const actNow = hold.act;
-    const dashNow = down("k") || down("c") || hold.dash || (actNow && !throwing) || flick;
+    const dashNow = down("k") || down("c") || hold.dash || flick;
     const dodgeNow = down("l") || down("shift") || hold.dodge;
     const startNow = down("enter") || down(" ");
     const pauseNow = down("escape") || down("p");
@@ -412,6 +547,7 @@ function boot(art: ArtBook): void {
 
     ctx.clearRect(0, 0, VW, VH);
     drawWorld(ctx, world, art);
+    syncHud();
     syncUi();
     requestAnimationFrame(loop);
   };

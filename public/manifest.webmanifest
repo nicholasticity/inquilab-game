@@ -1,0 +1,11 @@
+{
+  "name": "Inquilab",
+  "short_name": "Inquilab",
+  "description": "A non-lethal action chronicle of Bhagat Singh, 1928–1931.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#100c0e",
+  "theme_color": "#100c0e"
+}

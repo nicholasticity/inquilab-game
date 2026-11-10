@@ -765,56 +765,13 @@ function drawChrome(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void
     return;
   }
   if (w.mode === "play" || w.mode === "dead" || w.mode === "done" || w.mode === "pause") {
-    const p = w.player;
-    for (let i = 0; i < p.maxHp; i++) {
-      ctx.fillStyle = i < p.hp ? "#e24b3a" : "rgba(40,20,20,0.6)";
-      ctx.fillRect(24 + i * 22, 18, 18, 10);
-    }
-    ctx.fillStyle = "#f0e0c0";
-    ctx.font = "13px system-ui, sans-serif";
-    ctx.fillText(w.obj, 24, 38);
-    ctx.fillStyle = "#c8b090";
-    ctx.fillText((LNAME[w.level] ?? "") + "   " + w.time.toFixed(1) + "s", 24, 56);
-    if (w.combo > 1) {
-      ctx.fillStyle = "#ffe08a";
-      ctx.font = "700 22px system-ui, sans-serif";
-      ctx.fillText(String(w.combo) + " HIT", VW - 160, 20);
-    }
-    if (p.dcd <= 0) {
-      ctx.fillStyle = "#9ad0e8";
-      ctx.fillRect(24, 76, 28, 4);
-    }
-    if (w.ally && w.level === 2) {
-      ctx.fillStyle = "#d7b4e0";
-      ctx.fillRect(24, 88, 80 * (w.ally.hp / w.ally.maxHp), 5);
-    }
-    if (w.focus > 0) {
-      ctx.fillStyle = "#ffe08a";
-      ctx.fillRect(24, 98, 70 * clamp(w.focus / 1.7, 0, 1), 4);
-    }
-    if (w.level === 4 && w.gallery) {
-      ctx.fillStyle = w.alarm >= 100 ? "#e24b3a" : "#c8b090";
-      ctx.fillRect(VW - 180, 52, 140 * clamp(w.alarm / 100, 0, 1), 4);
-    }
-    if (w.fast) {
-      ctx.fillStyle = "#f3e6c0";
-      ctx.font = "16px Georgia, 'Iowan Old Style', Palatino, serif";
-      ctx.fillText("Day " + String(w.days), VW - 140, 20);
-    }
-    if (w.hint && w.mode === "play") {
-      ctx.fillStyle = "rgba(10,8,8,0.55)";
-      ctx.fillRect(24, 112, 520, 22);
-      ctx.fillStyle = "#f6e6c0";
-      ctx.font = "14px system-ui, sans-serif";
-      ctx.fillText(w.hint, 32, 116);
-    }
+    drawPlayHud(ctx, w, art);
   }
-  if (w.bannerT > 0 && w.banner) {
-    ctx.fillStyle = "rgba(8,6,8,0.45)";
-    ctx.fillRect(0, VH * 0.38, VW, 56);
-    ctx.fillStyle = "#f6e6c0";
-    ctx.font = "700 26px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillText(w.banner, 48, VH * 0.4);
+  if (w.bannerT > 0 && w.banner && w.mode !== "done" && w.mode !== "talk") {
+    const intro = w.banner === (LNAME[w.level] ?? "");
+    const alpha = w.bannerT > 1.6 ? clamp((2.1 - w.bannerT) / 0.35, 0, 1) : clamp(w.bannerT / 0.5, 0, 1);
+    if (intro) drawIntro(ctx, w, alpha);
+    else drawToast(ctx, w.banner, alpha);
   }
   if (w.mode === "talk") {
     const line = w.talk[w.talkI];
@@ -847,12 +804,163 @@ function drawChrome(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void
     ctx.fillText("Hits taken  " + String(w.hitsTaken), 74, 304);
     ctx.fillText("Press Space to continue", 74, 360);
   }
-  if (w.caption && w.mode === "play" && w.level > 0) {
-    ctx.fillStyle = "rgba(232,210,170,0.72)";
-    ctx.font = "12px Georgia, 'Iowan Old Style', Palatino, serif";
-    const cap = w.caption || (CAPTION[w.level] ?? "");
-    if (cap) ctx.fillText(cap, 24, VH - 118);
+}
+
+function drawPlayHud(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  const p = w.player;
+  const portrait = art.portrait.bhagat;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(40, 40, 22, 0, Math.PI * 2);
+  ctx.clip();
+  if (portrait) drawPortrait(ctx, portrait, 18, 18, 44, 44);
+  else {
+    ctx.fillStyle = "#3a2a22";
+    ctx.fillRect(18, 18, 44, 44);
   }
+  ctx.restore();
+  ctx.strokeStyle = "rgba(243, 230, 192, 0.85)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(40, 40, 23, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const barX = 72;
+  const barW = 124;
+  ctx.fillStyle = "rgba(20, 12, 12, 0.72)";
+  roundRect(ctx, barX, 24, barW, 12, 4);
+  ctx.fill();
+  const hp = p.maxHp > 0 ? clamp(p.hp / p.maxHp, 0, 1) : 0;
+  ctx.fillStyle = "#e24b3a";
+  if (hp > 0) {
+    roundRect(ctx, barX, 24, Math.max(6, barW * hp), 12, 4);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 1;
+  for (let i = 1; i < p.maxHp; i++) {
+    const x = barX + (barW / p.maxHp) * i;
+    ctx.beginPath();
+    ctx.moveTo(x, 25);
+    ctx.lineTo(x, 35);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(70, 52, 24, 0.9)";
+  roundRect(ctx, barX, 40, barW, 7, 3);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(226, 188, 122, 0.7)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  if (w.focus > 0) {
+    ctx.fillStyle = "#ffe08a";
+    roundRect(ctx, barX, 40, Math.max(6, barW * clamp(w.focus / 1.7, 0, 1)), 7, 3);
+    ctx.fill();
+  }
+  if (w.ally && w.level === 2 && w.ally.maxHp > 0) {
+    ctx.fillStyle = "rgba(40, 24, 40, 0.7)";
+    roundRect(ctx, barX, 50, 80, 4, 2);
+    ctx.fill();
+    ctx.fillStyle = "#d7b4e0";
+    roundRect(ctx, barX, 50, 80 * clamp(w.ally.hp / w.ally.maxHp, 0, 1), 4, 2);
+    ctx.fill();
+  }
+
+  const obj = w.obj || "";
+  let objSize = 13;
+  ctx.font = "600 " + String(objSize) + "px system-ui, sans-serif";
+  while (objSize > 11 && ctx.measureText(obj).width > 440) {
+    objSize -= 1;
+    ctx.font = "600 " + String(objSize) + "px system-ui, sans-serif";
+  }
+  const pillW = Math.min(480, Math.max(120, ctx.measureText(obj).width + 28));
+  const pillX = (VW - pillW) / 2;
+  ctx.fillStyle = "rgba(12, 8, 8, 0.72)";
+  roundRect(ctx, pillX, 12, pillW, 28, 14);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(226, 188, 122, 0.45)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = "#f6e6c0";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(obj, VW / 2, 26);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  if (w.level === 4 && w.gallery) {
+    ctx.fillStyle = "rgba(20, 12, 12, 0.55)";
+    ctx.fillRect(pillX, 44, pillW, 3);
+    ctx.fillStyle = w.alarm >= 100 ? "#e24b3a" : "#e7c56a";
+    ctx.fillRect(pillX, 44, pillW * clamp(w.alarm / 100, 0, 1), 3);
+  }
+  if (w.combo > 1 && w.mode === "play") {
+    ctx.fillStyle = "#ffe08a";
+    ctx.font = "700 16px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(String(w.combo) + " HIT", VW / 2, 48);
+    ctx.textAlign = "left";
+  }
+
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#f3e6c0";
+  ctx.font = "700 16px system-ui, sans-serif";
+  const stat = w.rank ? w.rank : clock(w.time);
+  ctx.fillText(stat, VW - 72, 22);
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.fillStyle = "#c8b090";
+  if (w.score > 0) ctx.fillText(String(w.score), VW - 72, 40);
+  else if (w.fast) ctx.fillText("Day " + String(w.days), VW - 72, 40);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+}
+
+function drawIntro(ctx: CanvasRenderingContext2D, w: World, alpha: number): void {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(8, 6, 8, 0.62)";
+  roundRect(ctx, 180, 168, VW - 360, 150, 16);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(226, 188, 122, 0.55)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = "#f6e6c0";
+  ctx.font = "700 32px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.textAlign = "center";
+  ctx.fillText(w.banner, VW / 2, 198);
+  ctx.textAlign = "left";
+  ctx.font = "15px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.fillStyle = "#d7c4a0";
+  const cap = w.caption || (CAPTION[w.level] ?? "");
+  if (cap) wrapText(ctx, cap, VW / 2 - 220, 248, 440, 22);
+  ctx.restore();
+}
+
+function drawToast(ctx: CanvasRenderingContext2D, text: string, alpha: number): void {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = "700 16px system-ui, sans-serif";
+  const width = Math.min(520, ctx.measureText(text).width + 36);
+  const x = (VW - width) / 2;
+  ctx.fillStyle = "rgba(8, 6, 8, 0.72)";
+  roundRect(ctx, x, 78, width, 32, 16);
+  ctx.fill();
+  ctx.fillStyle = "#f6e6c0";
+  ctx.textAlign = "center";
+  ctx.fillText(text, VW / 2, 86);
+  ctx.textAlign = "left";
+  ctx.restore();
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+function clock(t: number): string {
+  const s = Math.max(0, Math.floor(t));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return String(m) + ":" + (r < 10 ? "0" : "") + String(r);
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, max: number, lh: number): void {

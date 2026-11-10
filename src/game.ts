@@ -191,6 +191,9 @@ export const CAPTION = [
   "Lahore Central Jail, 1929. A strike of endurance.",
 ];
 
+export const DODGE_COOL = 0.36;
+export const DASH_COOL = 0.48;
+
 export const LNAME = [
   "",
   "ROOFTOP DRAGNET",
@@ -756,7 +759,7 @@ function updatePlayer(w: World, p: Ent, inp: Inp, dt: number): void {
     p.st = "dodge";
     p.stT = 0;
     p.inv = 0.18;
-    p.cool = 0.36;
+    p.cool = DODGE_COOL;
     p.vx = p.face * 520;
     p.vy *= 0.35;
     p.buf = 0;
@@ -768,7 +771,7 @@ function updatePlayer(w: World, p: Ent, inp: Inp, dt: number): void {
     const slide = inp.d && p.onG;
     p.st = slide ? "slide" : "dash";
     p.stT = 0;
-    p.dcd = 0.48;
+    p.dcd = DASH_COOL;
     p.vx = p.face * (slide ? 620 : 760);
     p.vy = 0;
     burst(w, p.x + p.w * 0.5, p.y + p.h, 7, "#d8c4a0", 160);
@@ -1476,7 +1479,7 @@ export function applyLevel(w: World, id: number, talkKey: string): void {
   w.hint = id === 1 ? (HINTS[0] ?? "") : "";
   w.endTalk = "";
   w.banner = LNAME[id] ?? "";
-  w.bannerT = 1.3;
+  w.bannerT = 2.1;
   w.deadT = 0;
   w.hitstop = 0;
   w.slomo = 0;
