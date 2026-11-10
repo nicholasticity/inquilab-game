@@ -2,281 +2,815 @@ import {
   CAPTION,
   LNAME,
   NAMES,
+  TS,
   VH,
   VW,
-  allyFrame,
-  foeFrame,
-  playerFrame,
-  type Ent,
+  epilogue,
+  type Guard,
   type World,
 } from "./game";
-
-/** Sheet cells were 96px tall and drawn at 1.42. Every painted frame uses that height. */
-const DRAW_H = 96 * 1.42;
 
 export interface ArtBook {
   bg: Record<string, HTMLImageElement>;
   portrait: Record<string, HTMLImageElement>;
-  frame: Record<string, HTMLImageElement>;
-  /** Tileable ground strips. Top of the image is the walk surface, the rest is the front face. */
-  ground: Record<string, HTMLImageElement>;
-  /** Period props, drawn only when a painting is loaded. */
-  prop: Record<string, HTMLImageElement>;
+  tile: Record<string, HTMLImageElement>;
+  sheet: Record<string, HTMLImageElement>;
+}
+
+interface Palette {
+  floor: string;
+  dark: string;
+  lit: string;
+  wall: string;
+  top: string;
+  grass: string;
+  wood: string;
+}
+
+const PALETTE: Palette[] = [
+  { floor: "#3a342c", dark: "#241e22", lit: "#4a4034", wall: "#6a5344", top: "#8d6e56", grass: "#3e5a3a", wood: "#8a6244" },
+  { floor: "#3a342c", dark: "#241c20", lit: "#5a4636", wall: "#6e5646", top: "#907058", grass: "#3f5a38", wood: "#8a6244" },
+  { floor: "#2c3438", dark: "#1a2226", lit: "#3e4a46", wall: "#59645e", top: "#748078", grass: "#3a5244", wood: "#7a6248" },
+  { floor: "#3a2c26", dark: "#241814", lit: "#5a3a2c", wall: "#6a4538", top: "#8a5c48", grass: "#4a4030", wood: "#9a6844" },
+  { floor: "#3a3834", dark: "#262420", lit: "#524c44", wall: "#6e6a60", top: "#8e8878", grass: "#4a5240", wood: "#8a704c" },
+  { floor: "#2a3034", dark: "#181c20", lit: "#3a4448", wall: "#4e585c", top: "#6a7478", grass: "#3a4840", wood: "#6a5844" },
+  { floor: "#34282a", dark: "#1e1618", lit: "#4a3834", wall: "#5c403c", top: "#7a584c", grass: "#3e4834", wood: "#8a6848" },
+];
+
+const AGENT_COLOR: Record<string, string> = {
+  kite: "#c4a06a",
+  veil: "#2f6d54",
+  key: "#8a5a32",
+};
+
+/** Draws the world larger than the sim, so the painted figures read on a phone. */
+const ZOOM = 1.8;
+const SPRITE_H = 78;
+
+const BODY: Record<string, string> = {
+  kite: "scout",
+  veil: "sari",
+  key: "lockpick",
+  constable: "constable",
+  officer: "officer",
+  soldier: "soldier",
+};
+
+const lastSpot = new Map<string, { x: number; y: number }>();
+
+function hash(n: number): number {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
 }
 
 function clamp(n: number, a: number, b: number): number {
   return n < a ? a : n > b ? b : n;
 }
 
-function drawSprite(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement | undefined,
-  x: number,
-  footY: number,
-  face: number,
-  squash: number,
-  flash: boolean,
-): void {
-  if (!img || img.naturalWidth <= 0) return;
-  const scale = DRAW_H / img.naturalHeight;
-  const dw = img.naturalWidth * scale * (1 + squash * 0.14);
-  const dh = img.naturalHeight * scale * (1 - squash * 0.18);
-  ctx.save();
-  ctx.translate(x, footY);
-  ctx.scale(face < 0 ? -1 : 1, 1);
-  ctx.drawImage(img, -dw / 2, -dh, dw, dh);
-  if (flash) {
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = 0.55;
-    ctx.drawImage(img, -dw / 2, -dh, dw, dh);
-  }
-  ctx.restore();
-}
-
-function drawLayers(ctx: CanvasRenderingContext2D, art: ArtBook, key: string, cam: number, travel: number): void {
-  const far = art.bg[key + "_far"];
-  const mid = art.bg[key + "_mid"];
-  ctx.fillStyle = "#100c10";
-  ctx.fillRect(0, 0, VW, VH);
-  if (far || mid) {
-    if (far) {
-      const slow = key === "station";
-      drawScene(ctx, far, cam, travel, slow ? 0.22 : 0.5, slow ? 0.46 : 1);
-    }
-    if (mid) {
-      const sky = key === "lahore" ? 0.48 : key === "press" ? 0.24 : key === "assembly" ? 0.16 : key === "cell" ? 0.2 : 0;
-      if (sky > 0) drawSceneKeyed(ctx, mid, cam, travel, 0.94, sky);
-      else drawScene(ctx, mid, cam, travel, 0.94, 1);
-    }
-    return;
-  }
-  drawBG(ctx, art.bg[key], cam * 0.28);
-}
-
-const LIP: Record<string, [string, string, string]> = {
-  brick: ["#6b4a36", "#3d2a22", "#8a6248"],
-  scaffold: ["#7a5a3a", "#4a3424", "#c4a074"],
-  stone: ["#6a675f", "#3a3834", "#b7b1a6"],
-  iron: ["#5c656e", "#2c333a", "#9aa6b0"],
-  wood: ["#7a5340", "#3e281c", "#c4926a"],
-  marble: ["#8a8478", "#4e4a44", "#e6dfd2"],
-  cell: ["#5a5a58", "#2a2a28", "#8e8c86"],
-};
-
-function matName(level: number, t: number, k?: string): string {
-  if (k) return k;
-  if (t === 1 || t === 2) return "scaffold";
-  if (level === 2) return t === 3 ? "iron" : "stone";
-  if (level === 3) return "wood";
-  if (level === 4) return "marble";
-  if (level === 5) return "cell";
-  return "brick";
-}
-
-function drawGround(ctx: CanvasRenderingContext2D, art: ArtBook, level: number, bg: string, pl: PlatLike): void {
-  if (pl.t === 4) {
-    ctx.fillStyle = "rgba(18,14,12,0.92)";
-    for (let x = pl.x; x < pl.x + pl.w; x += 10) ctx.fillRect(x, pl.y, 4, pl.h);
-    return;
-  }
-  const img = art.ground[bg];
-  const ceiling = pl.t === 2 || pl.t === 5;
-  if (img && img.naturalWidth > 0) {
-    const scale = img.naturalHeight < 400 ? 0.24 : 0.175;
-    const worldH = ceiling ? Math.max(pl.h, 28) : Math.round(img.naturalHeight * scale);
-    const srcY = ceiling ? Math.round(img.naturalHeight * 0.42) : 0;
-    const srcH = ceiling ? img.naturalHeight - srcY : img.naturalHeight;
-    tileStrip(ctx, img, pl, worldH, srcY, srcH, worldH, bg === "station" || bg === "assembly");
-    if (!ceiling) {
-      ctx.fillStyle = "rgba(0,0,0,0.28)";
-      ctx.fillRect(pl.x + 2, pl.y + worldH - 3, pl.w - 4, 8);
-    }
-    return;
-  }
-  const name = matName(level, pl.t, pl.k);
-  const face = ceiling ? Math.max(pl.h, 24) : 78;
-  const tone = LIP[name] ?? LIP.brick;
-  const grd = ctx.createLinearGradient(0, pl.y, 0, pl.y + face);
-  grd.addColorStop(0, tone[2] ?? "#c4a074");
-  grd.addColorStop(0.14, tone[0] ?? "#6b4a36");
-  grd.addColorStop(1, tone[1] ?? "#3d2a22");
-  ctx.fillStyle = grd;
-  ctx.fillRect(pl.x, pl.y, pl.w, face);
-}
-
-interface PlatLike { x: number; y: number; w: number; h: number; t: number; k?: string }
-
-function drawSheet(ctx: CanvasRenderingContext2D, pap: { x: number; y: number; got: boolean } | undefined, t: number, i: number, color: string): void {
-  if (!pap || pap.got) return;
-  ctx.fillStyle = color;
-  ctx.save();
-  ctx.translate(pap.x, pap.y + Math.sin(t * 4 + i) * 4);
-  ctx.rotate(-0.2);
-  ctx.fillRect(0, 0, 16, 20);
-  ctx.restore();
-}
-
-function hash(n: number): number {
-  const x = Math.sin(n * 127.1) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-function tileStrip(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  pl: PlatLike,
-  worldH: number,
-  srcY: number,
-  srcH: number,
-  destH: number,
-  varied: boolean,
-): void {
-  const seam = Math.round(img.naturalWidth * 0.05);
-  const half = Math.floor(img.naturalWidth / 2) - seam;
-  if (half < 8 || srcH < 2) return;
-  const tileW = Math.max(88, Math.round(half * (worldH / img.naturalHeight)));
-  const scramble = varied ? 1.67 : 1;
-  const phase = ((pl.x * scramble) % tileW + tileW) % tileW;
-  let x = pl.x - phase;
-  let n = 0;
-  ctx.save();
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath();
-  ctx.rect(pl.x, pl.y - 1, pl.w, destH + 3);
-  ctx.clip();
-  while (x < pl.x + pl.w + 1 && n < 80) {
-    const right = (Math.floor(pl.x * scramble / tileW) + n) % 2 === 1;
-    const sx = right ? Math.ceil(img.naturalWidth / 2) + seam : 0;
-    const dw = Math.min(tileW, pl.x + pl.w - x);
-    if (dw <= 1) break;
-    ctx.drawImage(img, sx, srcY, half * (dw / tileW), srcH, x, pl.y, dw, destH);
-    if (varied) {
-      const stain = hash(pl.x * 0.013 + n * 2.7);
-      if (stain > 0.7) {
-        ctx.fillStyle = "rgba(0,0,0," + (0.06 + (stain - 0.7) * 0.28).toFixed(3) + ")";
-        ctx.beginPath();
-        ctx.ellipse(x + dw * 0.5, pl.y + destH * 0.22, dw * 0.28, destH * 0.12, 0, 0, Math.PI * 2);
-        ctx.fill();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+function tileChar(w: World, tx: number, ty: number): string {
+  if (tx < 0 || ty < 0 || tx >= w.cols || ty >= w.rows) return "#";
+  return w.tiles[ty]?.[tx] ?? "#";
+}
+
+function sightBlocked(w: World, x: number, y: number): boolean {
+  const tx = Math.floor(x / TS);
+  const ty = Math.floor(y / TS);
+  const ch = tileChar(w, tx, ty);
+  if (ch === "#" || ch === "c") return true;
+  if (ch === "=") return !w.locks.some((l) => l.x === tx && l.y === ty && l.open);
+  return false;
+}
+
+function coneRange(g: Guard): number {
+  return g.ai === "alert" ? g.range * 1.05 : g.range;
+}
+
+export function drawWorld(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  ctx.fillStyle = "#100c0e";
+  ctx.fillRect(0, 0, VW, VH);
+  if (w.mode === "title" || w.mode === "select") {
+    drawTitle(ctx, w, art);
+    return;
+  }
+  if (w.mode === "finale") {
+    drawFinale(ctx, w, art);
+    return;
+  }
+  drawMap(ctx, w, art);
+  drawChrome(ctx, w, art);
+}
+
+function drawTitle(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  const pic = art.bg.title;
+  if (pic) ctx.drawImage(pic, 0, 0, VW, VH);
+  else {
+    ctx.fillStyle = "#1a1214";
+    ctx.fillRect(0, 0, VW, VH);
+  }
+  for (const q of w.rain) {
+    ctx.strokeStyle = "rgba(210, 220, 232, 0.35)";
+    ctx.beginPath();
+    ctx.moveTo(q.x, q.y);
+    ctx.lineTo(q.x - 2, q.y + 10);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(8, 6, 8, 0.42)";
+  ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = "#f3ddb0";
+  ctx.font = "700 64px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.fillText("INQUILAB", 64, 168);
+  ctx.font = "24px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.fillStyle = "#e7c98a";
+  ctx.fillText("Shadow Raj", 68, 206);
+  ctx.font = "16px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.fillStyle = "#d7c4a0";
+  ctx.fillText("A covert uprising. Three spies. One column.", 68, 242);
+  ctx.font = "15px system-ui, sans-serif";
+  ctx.fillStyle = "#c8b090";
+  ctx.fillText(w.mode === "select" ? "Choose a mission" : "Press Enter to begin     P for missions", 68, 300);
+  ctx.fillText("Sneak the cones. Hide. Choose. If they see you, break the line.", 68, 430);
+}
+
+function drawFinale(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  const pic = art.bg.finale;
+  if (pic) ctx.drawImage(pic, 0, 0, VW, VH);
+  ctx.fillStyle = "rgba(6, 4, 6, " + String(clamp(w.t / 2.4, 0.2, 0.72)) + ")";
+  ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = "#f6e6c0";
+  ctx.font = "700 28px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.fillText("The gate is open.", 64, 64);
+  ctx.font = "16px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.fillStyle = "#e6d7b4";
+  let y = 104;
+  for (const line of epilogue(w)) {
+    y = wrap(ctx, line, 64, y, 820, 22) + 8;
+  }
+  if (w.t > 8) {
+    ctx.fillStyle = "#c8b490";
+    ctx.font = "15px system-ui, sans-serif";
+    ctx.fillText("Press Enter to return", 64, 512);
+  }
+}
+
+function drawMap(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  const pal = PALETTE[w.level] ?? PALETTE[1] ?? PALETTE[0];
+  if (!pal) return;
+  ctx.save();
+  ctx.translate(VW / 2, VH / 2);
+  ctx.scale(ZOOM, ZOOM);
+  ctx.translate(-VW / 2, -VH / 2);
+  const x0 = Math.max(0, Math.floor(w.camX / TS) - 1);
+  const y0 = Math.max(0, Math.floor(w.camY / TS) - 1);
+  const x1 = Math.min(w.cols - 1, Math.ceil((w.camX + VW) / TS) + 1);
+  const y1 = Math.min(w.rows - 1, Math.ceil((w.camY + VH) / TS) + 1);
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      const ch = tileChar(w, tx, ty);
+      if (ch === "#") continue;
+      drawFloor(ctx, w, art, pal, tx, ty, ch);
+    }
+  }
+  drawFog(ctx, w);
+  drawLamps(ctx, w);
+  drawCones(ctx, w);
+  const actors: { y: number; draw: () => void }[] = [];
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      const ch = tileChar(w, tx, ty);
+      const sx = tx * TS - w.camX;
+      const sy = ty * TS - w.camY;
+      if (ch === "=") actors.push({ y: (ty + 1) * TS, draw: () => drawDoor(ctx, w, pal, sx, sy, tx, ty) });
+      else if (ch === "n") actors.push({ y: (ty + 1) * TS, draw: () => drawCrowd(ctx, sx, sy) });
+      else if (ch === "v") actors.push({ y: (ty + 1) * TS, draw: () => drawVent(ctx, pal, sx, sy) });
+      const prop = propOn(w, ch, tx, ty);
+      if (prop) actors.push({ y: (ty + 1) * TS, draw: () => drawProp(ctx, art, w, prop, (tx + 0.5) * TS, (ty + 1) * TS) });
+    }
+  }
+  for (const extra of dressing(w.level)) {
+    actors.push({ y: (extra.ty + 1) * TS, draw: () => drawProp(ctx, art, w, extra.key, (extra.tx + 0.5) * TS, (extra.ty + 1) * TS) });
+  }
+  for (const lamp of w.lamps) {
+    actors.push({ y: lamp.y, draw: () => drawProp(ctx, art, w, "lamp", lamp.x, lamp.y + 6) });
+  }
+  for (const g of w.guards) {
+    if (g.stashed) continue;
+    actors.push({ y: g.y, draw: () => drawGuard(ctx, w, art, g) });
+  }
+  actors.push({ y: w.player.y, draw: () => drawPlayer(ctx, w, art) });
+  actors.sort((a, b) => a.y - b.y);
+  for (const actor of actors) actor.draw();
+  if (w.pebble) {
+    ctx.fillStyle = "#d7c4a0";
+    ctx.beginPath();
+    ctx.arc(w.pebble.x - w.camX, w.pebble.y - w.camY, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      if (tileChar(w, tx, ty) !== "#") continue;
+      const sx = tx * TS - w.camX;
+      const sy = ty * TS - w.camY;
+      drawWall(ctx, art, pal, sx, sy, tx, ty);
+      if (w.level === 5 && ty === 9 && tx >= 5 && tx <= 16 && tx !== 8) {
+        drawProp(ctx, art, w, "bars", (tx + 0.5) * TS, (ty + 1) * TS - 2);
       }
     }
-    x += tileW;
-    n += 1;
   }
   ctx.restore();
-}
-
-function sceneBox(im: HTMLImageElement, cam: number, travel: number, amount: number): { ox: number; y: number; dw: number; dh: number } {
-  const cover = Math.max(VH / im.naturalHeight, VW / im.naturalWidth);
-  const scale = cover * 1.28;
-  const dw = im.naturalWidth * scale;
-  const dh = im.naturalHeight * scale;
-  const slack = Math.max(0, dw - VW);
-  const u = travel <= 1 ? 0 : Math.min(1, Math.max(0, cam) / travel);
-  return { ox: -u * slack * amount, y: (VH - dh) * 0.42, dw, dh };
-}
-
-function drawScene(
-  ctx: CanvasRenderingContext2D,
-  im: HTMLImageElement,
-  cam: number,
-  travel: number,
-  amount: number,
-  alpha: number,
-): void {
-  if (im.naturalWidth <= 0) return;
-  const box = sceneBox(im, cam, travel, amount);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(im, box.ox, box.y, box.dw, box.dh);
-  ctx.restore();
-}
-
-let scratch: HTMLCanvasElement | null = null;
-
-function drawSceneKeyed(
-  ctx: CanvasRenderingContext2D,
-  im: HTMLImageElement,
-  cam: number,
-  travel: number,
-  amount: number,
-  sky: number,
-): void {
-  if (typeof document === "undefined") {
-    drawScene(ctx, im, cam, travel, amount, 1);
-    return;
-  }
-  if (!scratch) {
-    scratch = document.createElement("canvas");
-    scratch.width = VW;
-    scratch.height = VH;
-  }
-  const g = scratch.getContext("2d");
-  if (!g) {
-    drawScene(ctx, im, cam, travel, amount, 1);
-    return;
-  }
-  g.setTransform(1, 0, 0, 1, 0, 0);
-  g.clearRect(0, 0, VW, VH);
-  g.imageSmoothingEnabled = true;
-  g.imageSmoothingQuality = "medium";
-  const box = sceneBox(im, cam, travel, amount);
-  g.drawImage(im, box.ox, box.y, box.dw, box.dh);
-  g.globalCompositeOperation = "destination-in";
-  const fade = g.createLinearGradient(0, 0, 0, VH);
-  fade.addColorStop(0, "rgba(0,0,0,0)");
-  fade.addColorStop(Math.max(0.05, sky * 0.72), "rgba(0,0,0,0.05)");
-  fade.addColorStop(Math.min(0.92, sky + 0.08), "rgba(0,0,0,1)");
-  fade.addColorStop(1, "rgba(0,0,0,1)");
-  g.fillStyle = fade;
-  g.fillRect(0, 0, VW, VH);
-  g.globalCompositeOperation = "source-over";
-  ctx.drawImage(scratch, 0, 0);
-}
-
-function drawBG(ctx: CanvasRenderingContext2D, im: HTMLImageElement | undefined, cam: number): void {
-  if (im && im.naturalWidth > 0) {
-    const scale = Math.max(VH / im.naturalHeight, (VW + 80) / im.naturalWidth) * 1.12;
-    const dw = im.naturalWidth * scale;
-    const dh = im.naturalHeight * scale;
-    const ox = -cam;
-    const y = (VH - dh) * 0.35;
-    ctx.drawImage(im, ox - 30, y, dw + 80, dh);
-    if (ox + dw < VW + 40) ctx.drawImage(im, ox + dw * 0.55, y, dw + 80, dh);
-    return;
-  }
-  ctx.fillStyle = "#140e12";
+  const vg = ctx.createRadialGradient(VW * 0.5, VH * 0.42, 180, VW * 0.5, VH * 0.5, 560);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.42)");
+  ctx.fillStyle = vg;
   ctx.fillRect(0, 0, VW, VH);
 }
 
-function drawPortrait(
+function floorName(level: number, ch: string): string {
+  if (ch === "g") return "garden";
+  if (ch === ".") {
+    if (level === 1) return "bazaar";
+    if (level === 2) return "railyard";
+    if (level === 3) return "workshop";
+    if (level === 4) return "assembly";
+    if (level === 5) return "prison";
+    return "palace";
+  }
+  if (level === 2) return "railyard";
+  if (level === 3) return "workshop";
+  if (level === 4) return "assembly";
+  if (level === 5) return "prison";
+  if (level === 6 && ch !== "v") return "palace";
+  return "rooftop";
+}
+
+function propOn(w: World, ch: string, tx: number, ty: number): string {
+  if (ch === "c") return "crate";
+  if (ch === "h") return w.level === 1 || w.level === 6 ? "haycart" : "laundry";
+  if (ch === "g") return "tree";
+  void tx;
+  void ty;
+  return "";
+}
+
+function dressing(level: number): { tx: number; ty: number; key: string }[] {
+  if (level === 1) return [{ tx: 12, ty: 7, key: "stall" }, { tx: 22, ty: 13, key: "stall" }];
+  if (level === 2) return [{ tx: 16, ty: 5, key: "carriage" }];
+  if (level === 3) return [{ tx: 30, ty: 7, key: "press" }, { tx: 32, ty: 12, key: "desk" }];
+  if (level === 4) return [{ tx: 7, ty: 10, key: "desk" }];
+  if (level === 5) return [{ tx: 26, ty: 4, key: "guardpost" }, { tx: 20, ty: 7, key: "sandbags" }];
+  if (level === 6) return [{ tx: 11, ty: 8, key: "sandbags" }, { tx: 24, ty: 8, key: "guardpost" }];
+  return [];
+}
+
+function blitWrapped(ctx: CanvasRenderingContext2D, im: HTMLImageElement, sx: number, sy: number, u: number, v: number): void {
+  const span = im.naturalWidth || 512;
+  const u0 = ((u % span) + span) % span;
+  const v0 = ((v % span) + span) % span;
+  const w1 = Math.min(TS, span - u0);
+  const h1 = Math.min(TS, span - v0);
+  ctx.drawImage(im, u0, v0, w1, h1, sx, sy, w1, h1);
+  if (w1 < TS) ctx.drawImage(im, 0, v0, TS - w1, h1, sx + w1, sy, TS - w1, h1);
+  if (h1 < TS) ctx.drawImage(im, u0, 0, w1, TS - h1, sx, sy + h1, w1, TS - h1);
+  if (w1 < TS && h1 < TS) ctx.drawImage(im, 0, 0, TS - w1, TS - h1, sx + w1, sy + h1, TS - w1, TS - h1);
+}
+
+function drawFloor(
   ctx: CanvasRenderingContext2D,
-  im: HTMLImageElement,
+  w: World,
+  art: ArtBook,
+  pal: Palette,
+  tx: number,
+  ty: number,
+  ch: string,
+): void {
+  const sx = tx * TS - w.camX;
+  const sy = ty * TS - w.camY;
+  const painted = art.tile[floorName(w.level, ch)];
+  if (painted) {
+    const span = painted.naturalWidth || 512;
+    blitWrapped(ctx, painted, sx, sy, Math.floor((tx * TS) % span), Math.floor((ty * TS) % span));
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    ctx.globalCompositeOperation = "multiply";
+    blitWrapped(ctx, painted, sx, sy, Math.floor((tx * TS + 230) % span), Math.floor((ty * TS + 170) % span));
+    ctx.restore();
+    const n = hash(Math.floor(tx / 3) * 11 + Math.floor(ty / 3) * 7 + w.level);
+    if (n > 0.78) {
+      ctx.fillStyle = "rgba(48, 28, 16, 0.16)";
+      ctx.beginPath();
+      ctx.ellipse(sx + 8 + (n - 0.78) * 40, sy + 6 + hash(tx * 5 + ty) * 16, 6, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    const dark = ch === "," || ch === "v" || ch === "h" || ch === "n";
+    ctx.fillStyle = ch === "." ? pal.lit : ch === "g" ? pal.grass : dark ? pal.dark : pal.floor;
+    ctx.fillRect(sx, sy, TS, TS);
+  }
+}
+
+function drawFog(ctx: CanvasRenderingContext2D, w: World): void {
+  ctx.save();
+  ctx.fillStyle = "rgba(14, 10, 16, 0.55)";
+  ctx.fillRect(0, 0, VW, VH);
+  ctx.globalCompositeOperation = "destination-out";
+  const punch = (x: number, y: number, inner: number, outer: number, strength: number) => {
+    const g = ctx.createRadialGradient(x, y, inner, x, y, outer);
+    g.addColorStop(0, "rgba(0,0,0," + String(strength) + ")");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, outer, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  punch(w.player.x - w.camX, w.player.y - w.camY, 36, 200, 1);
+  for (const lamp of w.lamps) {
+    if (!lamp.on) continue;
+    punch(lamp.x - w.camX, lamp.y - w.camY, 10, lamp.r, 0.92);
+  }
+  ctx.restore();
+}
+
+function drawWall(ctx: CanvasRenderingContext2D, art: ArtBook, pal: Palette, sx: number, sy: number, tx: number, ty: number): void {
+  const sheet = art.tile.wall;
+  if (sheet) {
+    ctx.drawImage(sheet, sx, sy - 12, TS, TS + 12);
+    return;
+  }
+  ctx.fillStyle = pal.wall;
+  ctx.fillRect(sx, sy, TS, TS);
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillRect(sx, sy + TS - 6, TS, 6);
+  ctx.fillStyle = pal.top;
+  ctx.fillRect(sx, sy - 12, TS, 14);
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  ctx.fillRect(sx, sy - 12, TS, 3);
+  const crack = hash(tx * 3 + ty * 11);
+  if (crack > 0.72) {
+    ctx.strokeStyle = "rgba(40, 24, 16, 0.35)";
+    ctx.beginPath();
+    ctx.moveTo(sx + 8, sy + 6);
+    ctx.lineTo(sx + 14, sy + 16);
+    ctx.stroke();
+  }
+}
+
+function drawDoor(ctx: CanvasRenderingContext2D, w: World, pal: Palette, sx: number, sy: number, tx: number, ty: number): void {
+  const open = w.locks.some((l) => l.x === tx && l.y === ty && l.open);
+  if (open) {
+    ctx.fillStyle = pal.dark;
+    ctx.fillRect(sx, sy, TS, TS);
+    ctx.fillStyle = pal.top;
+    ctx.fillRect(sx, sy, 4, TS);
+    ctx.fillRect(sx + TS - 4, sy, 4, TS);
+    return;
+  }
+  ctx.fillStyle = "#3a2a22";
+  ctx.fillRect(sx + 4, sy + 2, TS - 8, TS - 4);
+  ctx.fillStyle = "#8a6844";
+  ctx.fillRect(sx + 6, sy + 4, TS - 12, TS - 8);
+  ctx.fillStyle = "#e6c878";
+  ctx.beginPath();
+  ctx.arc(sx + 22, sy + 16, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawCrowd(ctx: CanvasRenderingContext2D, sx: number, sy: number): void {
+  const colors = ["#6a5348", "#c4b49a", "#3e4a44"];
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = colors[i] ?? "#666";
+    ctx.beginPath();
+    ctx.arc(sx + 8 + i * 8, sy + 18, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawVent(ctx: CanvasRenderingContext2D, pal: Palette, sx: number, sy: number): void {
+  ctx.fillStyle = pal.dark;
+  ctx.fillRect(sx, sy, TS, TS);
+  ctx.strokeStyle = "rgba(180, 160, 120, 0.35)";
+  ctx.strokeRect(sx + 6, sy + 10, 20, 12);
+  ctx.beginPath();
+  ctx.moveTo(sx + 10, sy + 10);
+  ctx.lineTo(sx + 10, sy + 22);
+  ctx.moveTo(sx + 16, sy + 10);
+  ctx.lineTo(sx + 16, sy + 22);
+  ctx.moveTo(sx + 22, sy + 10);
+  ctx.lineTo(sx + 22, sy + 22);
+  ctx.stroke();
+}
+
+function drawLamps(ctx: CanvasRenderingContext2D, w: World): void {
+  for (const lamp of w.lamps) {
+    if (!lamp.on) continue;
+    const x = lamp.x - w.camX;
+    const y = lamp.y - w.camY;
+    const glow = ctx.createRadialGradient(x, y, 4, x, y, lamp.r);
+    glow.addColorStop(0, "rgba(255, 214, 140, 0.38)");
+    glow.addColorStop(1, "rgba(255, 180, 80, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, lamp.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawCones(ctx: CanvasRenderingContext2D, w: World): void {
+  for (const g of w.guards) {
+    if (g.ai === "down" || g.stashed) continue;
+    const reach = coneRange(g);
+    const spread = g.fov;
+    const rays = 14;
+    ctx.beginPath();
+    ctx.moveTo(g.x - w.camX, g.y - w.camY);
+    for (let i = 0; i <= rays; i++) {
+      const ang = g.face - spread + (spread * 2 * i) / rays;
+      let dist = reach;
+      for (let s = 8; s <= reach; s += 8) {
+        const x = g.x + Math.cos(ang) * s;
+        const y = g.y + Math.sin(ang) * s;
+        if (sightBlocked(w, x, y)) { dist = s; break; }
+      }
+      ctx.lineTo(g.x + Math.cos(ang) * dist - w.camX, g.y + Math.sin(ang) * dist - w.camY);
+    }
+    ctx.closePath();
+    const hot = g.ai === "alert" || g.see;
+    ctx.fillStyle = hot ? "rgba(226, 70, 50, 0.28)" : g.ai === "sus" || g.ai === "search" ? "rgba(230, 190, 70, 0.24)" : "rgba(240, 220, 140, 0.16)";
+    ctx.fill();
+  }
+}
+
+const PROP_SIZE: Record<string, { w: number; h: number }> = {
+  crate: { w: 46, h: 42 },
+  haycart: { w: 58, h: 52 },
+  laundry: { w: 40, h: 42 },
+  stall: { w: 64, h: 72 },
+  lamp: { w: 18, h: 84 },
+  desk: { w: 54, h: 42 },
+  press: { w: 50, h: 58 },
+  carriage: { w: 96, h: 28 },
+  bars: { w: 44, h: 40 },
+  tree: { w: 72, h: 70 },
+  sandbags: { w: 54, h: 36 },
+  guardpost: { w: 40, h: 64 },
+};
+
+function drawProp(ctx: CanvasRenderingContext2D, art: ArtBook, w: World, key: string, wx: number, wy: number): void {
+  const im = art.tile[key];
+  if (!im) return;
+  const size = PROP_SIZE[key] ?? { w: 48, h: 48 };
+  const sx = wx - w.camX - size.w / 2;
+  const sy = wy - w.camY - size.h;
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.beginPath();
+  ctx.ellipse(sx + size.w / 2, wy - w.camY - 2, size.w * 0.28, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.drawImage(im, sx, sy, size.w, size.h);
+}
+
+function facing(face: number, body: string): "down" | "up" | "left" | "right" {
+  const c = Math.cos(face);
+  const s = Math.sin(face);
+  void body;
+  if (Math.abs(s) >= Math.abs(c)) return s >= 0 ? "down" : "up";
+  return c >= 0 ? "right" : "left";
+}
+
+function isMoving(id: string, x: number, y: number): boolean {
+  const prev = lastSpot.get(id);
+  lastSpot.set(id, { x, y });
+  if (!prev) return false;
+  return Math.hypot(x - prev.x, y - prev.y) > 0.2;
+}
+
+function drawFigure(
+  ctx: CanvasRenderingContext2D,
+  art: ArtBook,
+  w: World,
+  id: string,
+  body: string,
   x: number,
   y: number,
-  w: number,
-  h: number,
-): void {
-  const ir = im.naturalWidth / im.naturalHeight;
-  const r = w / h;
+  face: number,
+  crouch: boolean,
+  down: boolean,
+): boolean {
+  const dir = facing(face, body);
+  const moving = isMoving(id, x, y);
+  let frame = art.sheet[body + "-idle-" + dir] ?? art.sheet[body + "-idle-down"];
+  let bob = 0;
+  let squash = 1;
+  let sway = 0;
+  if (moving && dir === "down") {
+    const step = Math.floor(w.time * 6) % 2 === 0 ? "a" : "b";
+    frame = art.sheet[body + "-walk-down-" + step] ?? frame;
+  } else if (moving) {
+    bob = Math.sin(w.time * 10) * 2.4;
+    squash = 1 + Math.sin(w.time * 10) * 0.045;
+    sway = Math.sin(w.time * 5) * 1.8;
+  }
+  if (crouch) {
+    squash *= 0.78;
+    bob += 8;
+  }
+  const sx = x - w.camX;
+  const sy = y - w.camY;
+  if (!frame) return false;
+  const h = SPRITE_H * squash;
+  const dw = frame.naturalWidth / Math.max(1, frame.naturalHeight) * h;
+  ctx.fillStyle = "rgba(0,0,0,0.32)";
+  ctx.beginPath();
+  ctx.ellipse(sx, sy + 4, dw * 0.28, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (down) {
+    ctx.save();
+    ctx.translate(sx, sy + 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(frame, -h * 0.35, -dw * 0.35, h * 0.7, dw * 0.55);
+    ctx.restore();
+    return true;
+  }
+  ctx.drawImage(frame, sx - dw / 2 + sway, sy - h + 10 + bob, dw, h);
+  return true;
+}
+
+function drawPlayer(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  const p = w.player;
+  if (p.hidden) return;
+  const body = p.disguise ? "constable" : (BODY[w.agent] ?? "scout");
+  const x = p.x;
+  const y = p.y;
+  const painted = drawFigure(ctx, art, w, "player", body, x, y, p.face, p.crouch, false);
+  if (!painted) {
+    drawBody(ctx, x - w.camX, y - w.camY, p.face, p.disguise ? "#8a7a52" : (AGENT_COLOR[w.agent] ?? "#c4a06a"), p.crouch, w.agent === "veil" && !p.disguise);
+  }
+  if (p.channel > 0) {
+    ctx.strokeStyle = "#f0d090";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x - w.camX, y - w.camY, 18, -Math.PI / 2, -Math.PI / 2 + (p.channel / 0.85) * Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function drawGuard(ctx: CanvasRenderingContext2D, w: World, art: ArtBook, g: Guard): void {
+  const body = BODY[g.kind] ?? "constable";
+  const down = g.ai === "down";
+  const gid = g.kind + ":" + String(Math.round(g.homeX)) + ":" + String(Math.round(g.homeY));
+  const painted = drawFigure(ctx, art, w, gid, body, g.x, g.y, g.face, false, down);
+  if (!painted) {
+    const color = g.kind === "officer" ? "#7a3030" : g.kind === "soldier" ? "#5a6840" : "#8a7a52";
+    drawBody(ctx, g.x - w.camX, g.y - w.camY, g.face, color, false, false);
+  }
+  if (g.ai === "sus" || g.ai === "search" || g.ai === "alert") {
+    ctx.fillStyle = g.ai === "alert" ? "#e24b3a" : "#f0d090";
+    ctx.font = "700 16px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(g.ai === "alert" ? "!" : "?", g.x - w.camX, g.y - w.camY - SPRITE_H - 4);
+    ctx.textAlign = "left";
+  }
+}
+
+function drawBody(ctx: CanvasRenderingContext2D, x: number, y: number, face: number, color: string, crouch: boolean, shawl: boolean): void {
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.beginPath();
+  ctx.ellipse(x, y + 8, crouch ? 11 : 9, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const bob = crouch ? 4 : 0;
+  ctx.fillStyle = "#f6e6c0";
+  ctx.beginPath();
+  ctx.arc(x, y - 2 + bob, crouch ? 11 : 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(x, y + bob, crouch ? 8 : 7.5, crouch ? 6 : 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#1a120c";
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.fillStyle = shawl ? "#1d4a38" : "#f0d2b0";
+  ctx.beginPath();
+  ctx.arc(x + Math.cos(face) * 3, y - 11 + bob, 5.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(20, 12, 8, 0.65)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, y + bob);
+  ctx.lineTo(x + Math.cos(face) * 11, y + Math.sin(face) * 11 + bob);
+  ctx.stroke();
+}
+
+function drawChrome(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  if (w.mode === "play" || w.mode === "dead" || w.mode === "done" || w.mode === "pause") drawHud(ctx, w, art);
+  if (w.prompt && w.mode === "play") {
+    ctx.fillStyle = "rgba(6, 4, 6, 0.45)";
+    ctx.fillRect(0, 0, VW, VH);
+  }
+  if (w.bannerT > 0 && w.banner && w.mode !== "done" && w.mode !== "talk") {
+    const intro = w.banner === (LNAME[w.level] ?? "");
+    const alpha = w.bannerT > 1.6 ? clamp((2.1 - w.bannerT) / 0.35, 0, 1) : clamp(w.bannerT / 0.5, 0, 1);
+    if (intro) drawIntro(ctx, w, alpha);
+    else drawToast(ctx, w.banner, alpha);
+  }
+  if (w.mode === "talk") drawTalk(ctx, w, art);
+  if (w.mode === "done") drawDone(ctx, w);
+}
+
+function drawHud(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  const portrait = art.portrait[w.agent];
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(40, 40, 22, 0, Math.PI * 2);
+  ctx.clip();
+  if (portrait) drawCover(ctx, portrait, 18, 18, 44, 44, 0.18);
+  else {
+    ctx.fillStyle = "#3a2a22";
+    ctx.fillRect(18, 18, 44, 44);
+  }
+  ctx.restore();
+  ctx.strokeStyle = w.phaseT > 0 ? "#e24b3a" : "rgba(243, 230, 192, 0.85)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(40, 40, 23, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(w.phaseT / 4.2, 0, 1));
+  ctx.stroke();
+
+  const barX = 72;
+  ctx.fillStyle = "rgba(20, 12, 12, 0.72)";
+  roundRect(ctx, barX, 22, 130, 8, 4);
+  ctx.fill();
+  const det = clamp(w.detect, 0, 1);
+  ctx.fillStyle = det > 0.72 ? "#e24b3a" : det > 0.28 ? "#e7c56a" : "#9aaf78";
+  if (det > 0) {
+    roundRect(ctx, barX, 22, Math.max(6, 130 * det), 8, 4);
+    ctx.fill();
+  }
+  ctx.font = "700 11px system-ui, sans-serif";
+  const eye = w.player.hidden ? "HIDDEN" : w.phaseT > 0 ? "ALERT" : w.chase ? "RUN" : w.player.disguise ? "DISGUISED" : w.lit ? "LIT" : det > 0.2 ? "WATCHED" : "UNSEEN";
+  ctx.fillStyle = w.player.hidden ? "#d7ecc0" : w.phaseT > 0 ? "#f0a090" : "#f6e6c0";
+  ctx.fillText(eye, barX, 48);
+  ctx.fillStyle = "#c8b090";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.fillText(w.actLabel, barX, 64);
+
+  drawRadar(ctx, w);
+
+  const obj = w.obj || "";
+  let objSize = 13;
+  ctx.font = "600 " + String(objSize) + "px system-ui, sans-serif";
+  while (objSize > 11 && ctx.measureText(obj).width > 420) {
+    objSize -= 1;
+    ctx.font = "600 " + String(objSize) + "px system-ui, sans-serif";
+  }
+  const pillW = Math.min(460, Math.max(120, ctx.measureText(obj).width + 28));
+  const pillX = (VW - pillW) / 2;
+  ctx.fillStyle = "rgba(12, 8, 8, 0.72)";
+  roundRect(ctx, pillX, 10, pillW, 26, 13);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(226, 188, 122, 0.45)";
+  ctx.stroke();
+  ctx.fillStyle = "#f6e6c0";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(obj, VW / 2, 23);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#f3e6c0";
+  ctx.font = "700 16px system-ui, sans-serif";
+  ctx.fillText(w.rank || clock(w.time), VW - 200, 22);
+  ctx.textAlign = "left";
+}
+
+function drawRadar(ctx: CanvasRenderingContext2D, w: World): void {
+  const cx = VW - 78;
+  const cy = 78;
+  const r = 46;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = "rgba(8, 14, 12, 0.72)";
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  ctx.strokeStyle = "rgba(180, 200, 160, 0.25)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+  ctx.stroke();
+  const scale = r / 220;
+  for (const g of w.guards) {
+    if (g.stashed) continue;
+    const dx = (g.x - w.player.x) * scale;
+    const dy = (g.y - w.player.y) * scale;
+    if (dx * dx + dy * dy > r * r) continue;
+    ctx.fillStyle = g.ai === "down" ? "#6a6048" : g.ai === "alert" ? "#e24b3a" : "#e6d090";
+    ctx.fillRect(cx + dx - 1.5, cy + dy - 1.5, 3, 3);
+    if (g.ai !== "down") {
+      ctx.strokeStyle = "rgba(230, 208, 144, 0.45)";
+      ctx.beginPath();
+      ctx.moveTo(cx + dx, cy + dy);
+      ctx.lineTo(cx + dx + Math.cos(g.face) * 10, cy + dy + Math.sin(g.face) * 10);
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = "#f6e6c0";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = "rgba(226, 188, 122, 0.7)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawIntro(ctx: CanvasRenderingContext2D, w: World, alpha: number): void {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(8, 6, 8, 0.62)";
+  roundRect(ctx, 170, 150, VW - 340, 150, 16);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(226, 188, 122, 0.55)";
+  ctx.stroke();
+  ctx.fillStyle = "#f6e6c0";
+  ctx.font = "700 28px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.textAlign = "center";
+  ctx.fillText(w.banner, VW / 2, 188);
+  ctx.textAlign = "left";
+  ctx.font = "15px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.fillStyle = "#d7c4a0";
+  const cap = w.caption || (CAPTION[w.level] ?? "");
+  if (cap) wrap(ctx, cap, VW / 2 - 210, 224, 420, 20);
+  ctx.restore();
+}
+
+function drawToast(ctx: CanvasRenderingContext2D, text: string, alpha: number): void {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = "700 16px system-ui, sans-serif";
+  const width = Math.min(520, ctx.measureText(text).width + 36);
+  const x = (VW - width) / 2;
+  ctx.fillStyle = "rgba(8, 6, 8, 0.72)";
+  roundRect(ctx, x, 78, width, 32, 16);
+  ctx.fill();
+  ctx.fillStyle = "#f6e6c0";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, VW / 2, 94);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.restore();
+}
+
+function drawTalk(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
+  const line = w.talk[w.talkI];
+  if (!line) return;
+  ctx.fillStyle = "rgba(10, 8, 10, 0.82)";
+  ctx.fillRect(36, VH - 168, VW - 72, 136);
+  ctx.strokeStyle = "rgba(226, 188, 122, 0.65)";
+  ctx.strokeRect(36, VH - 168, VW - 72, 136);
+  const portrait = line.port ? art.portrait[line.port] : undefined;
+  if (portrait) drawCover(ctx, portrait, 52, VH - 152, 88, 108, 0.12);
+  ctx.fillStyle = "#e8c878";
+  ctx.font = "700 13px system-ui, sans-serif";
+  ctx.fillText(NAMES[line.who] ?? "", portrait ? 156 : 56, VH - 146);
+  ctx.fillStyle = "#f2ead8";
+  ctx.font = "17px Georgia, 'Iowan Old Style', Palatino, serif";
+  const shown = line.text.slice(0, Math.floor(w.talkShown));
+  wrap(ctx, shown, portrait ? 156 : 56, VH - 120, portrait ? VW - 230 : VW - 130, 22);
+}
+
+function drawDone(ctx: CanvasRenderingContext2D, w: World): void {
+  ctx.fillStyle = "rgba(8, 6, 8, 0.62)";
+  ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = "#f6e6c0";
+  ctx.font = "700 28px Georgia, 'Iowan Old Style', Palatino, serif";
+  ctx.fillText(w.headline || "MISSION CLEAR", 64, 120);
+  ctx.font = "18px system-ui, sans-serif";
+  ctx.fillText("Rank  " + w.rank + "     Time  " + w.time.toFixed(1) + "s", 64, 168);
+  ctx.fillText((w.spotted ? "Seen" : "Unseen") + "     Subdued  " + String(w.heat) + "     Papers  " + String(w.notes), 64, 198);
+  ctx.fillText("Caught  " + String(w.hitsTaken) + "     Netaji's trust  " + String(w.trust), 64, 228);
+  ctx.fillStyle = "rgba(20, 12, 12, 0.7)";
+  roundRect(ctx, 64, 252, 280, 12, 6);
+  ctx.fill();
+  ctx.fillStyle = "#c45a32";
+  roundRect(ctx, 64, 252, Math.max(8, 280 * clamp(w.revolt / 100, 0, 1)), 12, 6);
+  ctx.fill();
+  ctx.fillStyle = "#d7c4a0";
+  ctx.font = "13px system-ui, sans-serif";
+  ctx.fillText("Rebellion  " + String(w.revolt), 64, 284);
+  ctx.font = "16px system-ui, sans-serif";
+  ctx.fillStyle = "#f6e6c0";
+  ctx.fillText("Press Enter to continue", 64, 340);
+}
+
+function drawCover(ctx: CanvasRenderingContext2D, im: HTMLImageElement, dx: number, dy: number, dw: number, dh: number, focusY: number): void {
+  const ir = im.naturalWidth / Math.max(1, im.naturalHeight);
+  const r = dw / dh;
   let sx = 0;
   let sy = 0;
   let sw = im.naturalWidth;
@@ -286,587 +820,28 @@ function drawPortrait(
     sx = (im.naturalWidth - sw) / 2;
   } else {
     sh = sw / r;
-    sy = (im.naturalHeight - sh) * 0.15;
+    sy = Math.max(0, Math.min(im.naturalHeight - sh, (im.naturalHeight - sh) * focusY));
   }
-  ctx.drawImage(im, sx, sy, sw, sh, x, y, w, h);
+  ctx.drawImage(im, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
-export function drawWorld(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
-  const sx = w.shakeT > 0 ? (Math.random() - 0.5) * w.shake : 0;
-  const sy = w.shakeT > 0 ? (Math.random() - 0.5) * w.shake : 0;
-  ctx.save();
-  ctx.translate(sx, sy);
-  const bgKey = w.mode === "title" || w.mode === "select" ? "title" : w.mode === "finale" ? "finale" : w.bg;
-  const scrolling = w.mode !== "title" && w.mode !== "select" && w.mode !== "finale";
-  drawLayers(ctx, art, bgKey, scrolling ? w.camX : w.t * 12, scrolling ? Math.max(VW, w.width - VW) : VW);
-  if (w.mode === "title" || w.mode === "select" || w.mode === "finale") {
-    ctx.restore();
-    drawFX(ctx, w);
-    drawChrome(ctx, w, art);
-    return;
-  }
-  ctx.save();
-  ctx.translate(-Math.floor(w.camX), 0);
-  for (let i = 0; i < w.plats.length; i++) {
-    const pl = w.plats[i];
-    if (!pl || pl.x + pl.w < w.camX - 40 || pl.x > w.camX + VW + 40) continue;
-    drawGround(ctx, art, w.level, w.bg, pl);
-  }
-  for (let i = 0; i < w.plats.length; i++) {
-    const pl = w.plats[i];
-    if (!pl || pl.t === 2 || pl.t === 4 || pl.t === 5) continue;
-    if (pl.x + pl.w < w.camX - 40 || pl.x > w.camX + VW + 40) continue;
-    drawLip(ctx, art, w.bg, pl);
-  }
-  drawDressing(ctx, w);
-  for (let i = 0; i < w.extras.length; i++) {
-    const ex = w.extras[i];
-    if (!ex || ex.x < w.camX - 80 || ex.x > w.camX + VW + 80) continue;
-    ctx.save();
-    ctx.globalAlpha = 0.55;
-    ctx.translate(ex.x, ex.y);
-    ctx.scale(ex.sc, ex.sc);
-    ctx.translate(-ex.x, -ex.y);
-    drawSprite(ctx, art.frame[ex.frame], ex.x, ex.y, ex.face, 0, false);
-    ctx.restore();
-  }
-  for (let i = 0; i < w.props.length; i++) {
-    const prop = w.props[i];
-    if (!prop) continue;
-    const im = art.prop[prop.k];
-    if (im && im.naturalWidth > 0) {
-      const dh = 54;
-      const dw = dh * (im.naturalWidth / im.naturalHeight);
-      ctx.drawImage(im, prop.x, prop.y - dh + 16, dw, dh);
-    } else drawProp(ctx, prop.x, prop.y, prop.k, w.t);
-  }
-  for (let i = 0; i < w.checks.length; i++) {
-    const c = w.checks[i];
-    if (!c) continue;
-    ctx.fillStyle = c.used ? "rgba(220,190,110,0.95)" : "rgba(240,220,150,0.55)";
-    ctx.fillRect(c.x, c.y - 70, 5, 70);
-    ctx.fillRect(c.x, c.y - 70, 22, 14);
-  }
-  for (let i = 0; i < w.papers.length; i++) drawSheet(ctx, w.papers[i], w.t, i, "#f3e6bf");
-  for (let i = 0; i < w.gems.length; i++) drawSheet(ctx, w.gems[i], w.t, i + 3, "#e7c56a");
-  for (let i = 0; i < w.hazards.length; i++) {
-    const h = w.hazards[i];
-    if (!h) continue;
-    const beam = Math.max(22, h.h);
-    const grd = ctx.createLinearGradient(0, h.y, 0, h.y + beam);
-    grd.addColorStop(0, "rgba(88,62,40,0.95)");
-    grd.addColorStop(1, "rgba(28,18,12,0.95)");
-    ctx.fillStyle = grd;
-    ctx.fillRect(h.x, h.y, h.w, beam);
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(h.x, h.y + beam - 4, h.w, 4);
-  }
-  if (w.level === 3 && w.fireX > -100) {
-    const grd = ctx.createLinearGradient(w.fireX - 220, 0, w.fireX + 40, 0);
-    grd.addColorStop(0, "rgba(180,40,10,0)");
-    grd.addColorStop(0.6, "rgba(220,70,16,0.35)");
-    grd.addColorStop(1, "rgba(255,160,40,0.55)");
-    ctx.fillStyle = grd;
-    ctx.fillRect(w.fireX - 220, 0, 280, VH);
-  }
-  for (let i = 0; i < w.ghosts.length; i++) {
-    const g = w.ghosts[i];
-    if (!g) continue;
-    ctx.globalAlpha = g.life * 0.45;
-    drawSprite(ctx, art.frame[g.frame], g.x, g.y, g.face, 0, false);
-    ctx.globalAlpha = 1;
-  }
-  for (let i = 0; i < w.foes.length; i++) {
-    const e = w.foes[i];
-    if (!e || e.ai === "wait") continue;
-    drawTell(ctx, e, w);
-    const flash = (e.ai === "telegraph" && Math.floor(w.t * 14) % 2 === 0) || (e.inv > 0 && e.st === "hit");
-    const scale = e.kind === "inspector" ? 1.12 : 1;
-    drawActor(ctx, art, e, foeFrame(e), flash, scale);
-  }
-  for (let i = 0; i < w.bolts.length; i++) {
-    const b = w.bolts[i];
-    if (!b) continue;
-    ctx.fillStyle = "#e7c56a";
-    ctx.fillRect(b.x, b.y, 14, 4);
-  }
-  if (w.ally && w.ally.hp > 0) {
-    drawActor(ctx, art, w.ally, allyFrame(w.ally), w.ally.inv > 0 && w.ally.st === "hit");
-  }
-  const p = w.player;
-  const blink = p.inv > 0 && p.st !== "down" && Math.floor(w.t * 18) % 2 === 0;
-  if (!blink || p.st === "dodge") {
-    if (w.focus > 0) {
-      ctx.strokeStyle = "rgba(255, 220, 140, 0.85)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(p.x - 4, p.y - 6, p.w + 8, p.h + 8);
-    }
-    drawActor(ctx, art, p, playerFrame(p, w.t), p.st === "hit" || w.focus > 0.2);
-  }
-  if (w.level === 4 && w.gallery && w.leaflets >= 8 && w.markX > 0) {
-    ctx.strokeStyle = "rgba(240,210,140,0.7)";
-    ctx.strokeRect(w.markX - 70, 442, 140, 12);
-  }
-  if (w.fast && w.breadOn && w.days >= 90 && w.days < 112 && !w.broke) {
-    ctx.fillStyle = "#e6d2a4";
-    ctx.fillRect(w.breadX, 452, 18, 10);
-  }
-  if (p.x > w.exitX - 160 && w.level !== 4 && w.level !== 5) {
-    ctx.fillStyle = "rgba(240,210,140,0.12)";
-    ctx.fillRect(w.exitX - 10, 0, 80, VH);
-  }
-  ctx.restore();
-  ctx.restore();
-  drawFX(ctx, w);
-  drawChrome(ctx, w, art);
-}
-
-function drawActor(
-  ctx: CanvasRenderingContext2D,
-  art: ArtBook,
-  e: Ent,
-  frame: string,
-  flash: boolean,
-  scale = 1,
-): void {
-  const foot = e.y + e.h + 1;
-  if (e.onG && e.st !== "jump") {
-    ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.38)";
-    ctx.beginPath();
-    ctx.ellipse(e.x + e.w * 0.5, foot + 1, 16 * scale, 5 * scale, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-  if (scale === 1) {
-    drawSprite(ctx, art.frame[frame], e.x + e.w * 0.5, foot, e.face, e.squash, flash);
-    return;
-  }
-  ctx.save();
-  ctx.translate(e.x + e.w * 0.5, foot);
-  ctx.scale(scale, scale);
-  ctx.translate(-(e.x + e.w * 0.5), -foot);
-  drawSprite(ctx, art.frame[frame], e.x + e.w * 0.5, foot, e.face, e.squash, flash);
-  ctx.restore();
-}
-
-function drawTell(ctx: CanvasRenderingContext2D, e: Ent, w: World): void {
-  if (e.hp <= 0) return;
-  if (e.kind === "shield" || (e.kind === "inspector" && e.ai === "guard")) {
-    ctx.strokeStyle = "rgba(210, 190, 150, 0.85)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    const cx = e.x + e.w * 0.5 + e.face * 18;
-    ctx.arc(cx, e.y + 36, 22, e.face > 0 ? -0.8 : Math.PI - 0.8, e.face > 0 ? 0.8 : Math.PI + 0.8);
-    ctx.stroke();
-  }
-  if (e.ai === "aim") {
-    ctx.strokeStyle = "rgba(226, 80, 50, 0.75)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(e.x + e.w * 0.5, e.y + 28);
-    ctx.lineTo(w.player.x + w.player.w * 0.5, w.player.y + 24);
-    ctx.stroke();
-  }
-  if (e.tag === "watch" && e.ai === "watch") {
-    ctx.fillStyle = "rgba(226, 188, 122, 0.08)";
-    ctx.beginPath();
-    ctx.moveTo(e.x + e.w * 0.5, e.y + 24);
-    ctx.lineTo(e.x + e.face * 180, e.y - 20);
-    ctx.lineTo(e.x + e.face * 180, e.y + 70);
-    ctx.fill();
-  }
-  if ((e.ai === "telegraph" || e.ai === "aim") && e.telMax > 0) {
-    const u = clamp(e.stT / e.telMax, 0, 1);
-    ctx.fillStyle = "rgba(20,12,12,0.7)";
-    ctx.fillRect(e.x, e.y - 12, e.w, 4);
-    ctx.fillStyle = u > 0.72 ? "#e24b3a" : "#e8c56a";
-    ctx.fillRect(e.x, e.y - 12, e.w * u, 4);
-  }
-}
-
-function drawLip(ctx: CanvasRenderingContext2D, art: ArtBook, bg: string, pl: PlatLike): void {
-  const img = art.ground[bg];
-  if (!img || img.naturalWidth <= 0) return;
-  const scale = img.naturalHeight < 400 ? 0.24 : 0.175;
-  const worldH = Math.round(img.naturalHeight * scale);
-  const capSrc = Math.max(8, Math.round(img.naturalHeight * 0.2));
-  const capH = Math.max(14, Math.round(worldH * 0.22));
-  tileStrip(ctx, img, pl, worldH, 0, capSrc, capH, false);
-}
-
-function drawDressing(ctx: CanvasRenderingContext2D, w: World): void {
-  if (w.bg !== "station" && w.bg !== "assembly") return;
-  for (let i = 0; i < w.plats.length; i++) {
-    const pl = w.plats[i];
-    if (!pl || pl.t === 2 || pl.t === 4 || pl.t === 5 || pl.w < 280) continue;
-    if (pl.x + pl.w < w.camX - 80 || pl.x > w.camX + VW + 80) continue;
-    const step = w.bg === "station" ? 460 : 520;
-    for (let x = pl.x + 90; x < pl.x + pl.w - 70; x += step) {
-      const pick = hash(x * 0.17 + pl.y);
-      if (pick < 0.45) drawProp(ctx, x, pl.y, "crate", w.t);
-      else if (pick < 0.75) drawProp(ctx, x, pl.y, w.bg === "station" ? "bench" : "lamp", w.t);
-      else {
-        ctx.save();
-        ctx.fillStyle = w.bg === "station" ? "rgba(210, 190, 120, 0.16)" : "rgba(90, 50, 20, 0.18)";
-        ctx.beginPath();
-        ctx.ellipse(x, pl.y + 6, 28 + pick * 20, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
-  }
-}
-
-function drawProp(ctx: CanvasRenderingContext2D, x: number, y: number, k: string, t: number): void {
-  ctx.save();
-  const flick = 0.82 + Math.sin(t * 7 + x) * 0.18;
-  if (k === "lantern" || k === "lamp") {
-    const glow = ctx.createRadialGradient(x + 8, y - 28, 2, x + 8, y - 28, 36);
-    glow.addColorStop(0, "rgba(255, 196, 90, " + (0.45 * flick).toFixed(3) + ")");
-    glow.addColorStop(1, "rgba(255, 160, 40, 0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(x + 8, y - 28, 36, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#3a2a18";
-    ctx.fillRect(x + 6, y - 46, 4, 10);
-    ctx.fillStyle = "#e7c56a";
-    ctx.beginPath();
-    ctx.moveTo(x, y - 36);
-    ctx.lineTo(x + 16, y - 36);
-    ctx.lineTo(x + 13, y - 16);
-    ctx.lineTo(x + 3, y - 16);
-    ctx.fill();
-    ctx.strokeStyle = "#6a4a28";
-    ctx.stroke();
-  } else if (k === "pot") {
-    ctx.fillStyle = "#6a3a28";
-    ctx.beginPath();
-    ctx.ellipse(x + 12, y - 10, 14, 16, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#8a5040";
-    ctx.fillRect(x + 4, y - 28, 16, 6);
-  } else if (k === "crate") {
-    ctx.fillStyle = "#6b4328";
-    ctx.fillRect(x, y - 22, 28, 22);
-    ctx.strokeStyle = "#3a2416";
-    ctx.strokeRect(x, y - 22, 28, 22);
-    ctx.beginPath();
-    ctx.moveTo(x, y - 11);
-    ctx.lineTo(x + 28, y - 11);
-    ctx.moveTo(x + 14, y - 22);
-    ctx.lineTo(x + 14, y);
-    ctx.stroke();
-  } else if (k === "bench") {
-    ctx.fillStyle = "#5c4030";
-    ctx.fillRect(x, y - 16, 46, 6);
-    ctx.fillRect(x + 4, y - 10, 4, 10);
-    ctx.fillRect(x + 38, y - 10, 4, 10);
-    ctx.fillStyle = "#7a5840";
-    ctx.fillRect(x + 6, y - 30, 4, 14);
-    ctx.fillRect(x + 36, y - 30, 4, 14);
-    ctx.fillRect(x + 4, y - 30, 36, 4);
-  } else if (k === "press") {
-    ctx.fillStyle = "#2a2420";
-    ctx.fillRect(x, y - 36, 40, 28);
-    ctx.fillStyle = "#4a4038";
-    ctx.beginPath();
-    ctx.ellipse(x + 20, y - 22, 14, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#1a1614";
-    ctx.fillRect(x + 6, y - 8, 6, 8);
-    ctx.fillRect(x + 28, y - 8, 6, 8);
-  } else if (k === "bars") {
-    ctx.strokeStyle = "#2c3034";
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 5; i++) {
-      ctx.beginPath();
-      ctx.moveTo(x + i * 8, y - 70);
-      ctx.lineTo(x + i * 8, y);
-      ctx.stroke();
-    }
-  } else if (k === "bucket") {
-    ctx.fillStyle = "#5a534c";
-    ctx.beginPath();
-    ctx.moveTo(x, y - 16);
-    ctx.lineTo(x + 18, y - 16);
-    ctx.lineTo(x + 15, y);
-    ctx.lineTo(x + 3, y);
-    ctx.fill();
-    ctx.strokeStyle = "#2a2622";
-    ctx.beginPath();
-    ctx.arc(x + 9, y - 16, 8, Math.PI, 0);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawAtmosphere(ctx: CanvasRenderingContext2D, w: World): void {
-  const t = w.t;
-  const bg = w.bg;
-  if (bg === "lahore") {
-    for (let i = 0; i < 3; i++) {
-      const speed = 16 + i * 6;
-      const x = ((i * 280 + t * speed) % (VW + 120)) - 60;
-      const y = 28 + i * 22 + Math.sin(t * 0.8 + i) * 6;
-      const colors = ["#e25b2a", "#f2e2a0", "#2f6b4f"];
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(Math.sin(t + i) * 0.2);
-      ctx.fillStyle = colors[i] ?? "#e25b2a";
-      ctx.globalAlpha = 0.72;
-      ctx.beginPath();
-      ctx.moveTo(0, -7);
-      ctx.lineTo(9, 0);
-      ctx.lineTo(0, 7);
-      ctx.lineTo(-9, 0);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(40,20,16,0.45)";
-      ctx.beginPath();
-      ctx.moveTo(0, 8);
-      ctx.quadraticCurveTo(10, 22, 4, 36);
-      ctx.stroke();
-      ctx.restore();
-    }
-    ctx.fillStyle = "rgba(80, 30, 40, 0.08)";
-    ctx.fillRect(0, VH * 0.55, VW, VH * 0.45);
-  } else if (bg === "station") {
-    for (let i = 0; i < 3; i++) {
-      const x = ((t * (12 + i * 4) + i * 280) % (VW + 400)) - 200;
-      const fog = ctx.createRadialGradient(x, 250 + i * 40, 20, x, 250 + i * 40, 220);
-      fog.addColorStop(0, "rgba(180, 190, 210, 0.16)");
-      fog.addColorStop(1, "rgba(180, 190, 210, 0)");
-      ctx.fillStyle = fog;
-      ctx.fillRect(0, 0, VW, VH);
-    }
-  } else if (bg === "press") {
-    for (let i = 0; i < 28; i++) {
-      const life = (t * (0.15 + (i % 5) * 0.04) + i * 0.17) % 1;
-      const x = (i * 37 + Math.sin(t + i) * 12) % VW;
-      const y = VH - life * (VH + 20);
-      ctx.fillStyle = i % 4 === 0 ? "rgba(255, 220, 140, 0.9)" : "rgba(255, 120, 30, 0.75)";
-      ctx.globalAlpha = 1 - life;
-      ctx.beginPath();
-      ctx.arc(x, y, i % 3 === 0 ? 2.2 : 1.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    for (let i = 0; i < 6; i++) {
-      const x = ((t * 22 + i * 160) % (VW + 80)) - 40;
-      const y = 80 + (i * 70) % 360 + Math.sin(t * 1.4 + i) * 16;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(-0.4 + Math.sin(t + i) * 0.3);
-      ctx.fillStyle = "rgba(244, 230, 200, 0.72)";
-      ctx.fillRect(0, 0, 16, 11);
-      ctx.restore();
-    }
-  } else if (bg === "assembly" || bg === "cell") {
-    const shafts = bg === "cell" ? 1 : 3;
-    for (let i = 0; i < shafts; i++) {
-      ctx.save();
-      ctx.translate(bg === "cell" ? 760 : 280 + i * 220, -30);
-      ctx.rotate(0.55 + i * 0.04);
-      const g = ctx.createLinearGradient(0, 0, 70, 620);
-      g.addColorStop(0, bg === "cell" ? "rgba(210, 220, 235, 0.16)" : "rgba(255, 214, 150, 0.1)");
-      g.addColorStop(1, "rgba(255, 220, 160, 0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.moveTo(20, 0);
-      ctx.lineTo(48, 0);
-      ctx.lineTo(96, 640);
-      ctx.lineTo(52, 640);
-      ctx.fill();
-      ctx.restore();
-    }
-    const pages = bg === "assembly" ? 8 : 0;
-    for (let i = 0; i < pages; i++) {
-      const x = ((t * 16 + i * 140) % (VW + 100)) - 50;
-      const y = 70 + (i * 48) % 280 + Math.sin(t * 0.9 + i) * 18;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(-0.5 + Math.sin(t * 1.2 + i) * 0.4);
-      ctx.fillStyle = "rgba(248, 240, 220, 0.78)";
-      ctx.fillRect(0, 0, 18, 12);
-      ctx.restore();
-    }
-    if (bg === "cell") {
-      const fog = ctx.createRadialGradient(VW * 0.5, VH * 0.7, 40, VW * 0.5, VH * 0.75, 420);
-      fog.addColorStop(0, "rgba(180, 190, 200, 0.12)");
-      fog.addColorStop(1, "rgba(180, 190, 200, 0)");
-      ctx.fillStyle = fog;
-      ctx.fillRect(0, 0, VW, VH);
-    }
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawFX(ctx: CanvasRenderingContext2D, w: World): void {
-  if (w.level > 0 && w.mode !== "title" && w.mode !== "select") drawAtmosphere(ctx, w);
-  if (w.rainOn || w.mode === "title" || w.mode === "select") {
-    for (let i = 0; i < w.rain.length; i++) {
-      const q = w.rain[i];
-      if (!q) continue;
-      ctx.strokeStyle = "rgba(210, 220, 232, 0.35)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(q.x, q.y);
-      ctx.lineTo(q.x - 2, q.y + Math.max(8, q.size * 2));
-      ctx.stroke();
-    }
-  }
-  for (let i = 0; i < w.parts.length; i++) {
-    const q = w.parts[i];
-    if (!q) continue;
-    ctx.globalAlpha = Math.max(0, q.life / 0.55);
-    ctx.fillStyle = q.color;
-    ctx.fillRect(q.x - w.camX, q.y, q.size, q.size);
-  }
-  ctx.globalAlpha = 1;
-  const vg = ctx.createRadialGradient(VW * 0.5, VH * 0.45, 180, VW * 0.5, VH * 0.5, 520);
-  vg.addColorStop(0, "rgba(0,0,0,0)");
-  vg.addColorStop(1, "rgba(0,0,0,0.38)");
-  ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, VW, VH);
-}
-
-function drawChrome(ctx: CanvasRenderingContext2D, w: World, art: ArtBook): void {
-  ctx.textBaseline = "top";
-  if (w.mode === "title" || w.mode === "select") {
-    ctx.fillStyle = "rgba(8,6,8,0.38)";
-    ctx.fillRect(0, 0, VW, VH);
-    ctx.fillStyle = "#f3ddb0";
-    ctx.font = "700 64px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillText("INQUILAB", 64, 150);
-    ctx.font = "22px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillStyle = "#d7c4a0";
-    ctx.fillText("A non-lethal action chronicle of Bhagat Singh", 68, 228);
-    ctx.font = "16px system-ui, sans-serif";
-    ctx.fillStyle = "#c8b090";
-    ctx.fillText(w.mode === "select" ? "Choose a chapter" : "Press Space or Enter to begin    P for chapters", 68, 280);
-    ctx.fillText("Move   Jump   Tap attack, release a hold for heavy   Dodge   Flick to dash", 68, 418);
-    return;
-  }
-  if (w.mode === "finale") {
-    ctx.fillStyle = "rgba(6,4,6," + String(clamp(w.t / 3, 0, 0.45)) + ")";
-    ctx.fillRect(0, 0, VW, VH);
-    ctx.fillStyle = "#f6e6c0";
-    ctx.font = "22px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillText("23 March 1931.  Dawn.", 70, 150);
-    ctx.font = "20px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillText("It is easy to kill individuals but you cannot kill the ideas.", 70, 230);
-    ctx.fillText("Great empires crumbled while the ideas survived.", 70, 262);
-    ctx.font = "16px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillStyle = "#c8b490";
-    ctx.fillText("— Leaflet thrown in the Central Legislative Assembly, 8 April 1929", 70, 310);
-    ctx.fillText("Inquilab Zindabad.", 70, 380);
-    if (w.t > 6) ctx.fillText("Press Space to return", 70, 470);
-    return;
-  }
-  if (w.mode === "play" || w.mode === "dead" || w.mode === "done" || w.mode === "pause") {
-    const p = w.player;
-    for (let i = 0; i < p.maxHp; i++) {
-      ctx.fillStyle = i < p.hp ? "#e24b3a" : "rgba(40,20,20,0.6)";
-      ctx.fillRect(24 + i * 22, 18, 18, 10);
-    }
-    ctx.fillStyle = "#f0e0c0";
-    ctx.font = "13px system-ui, sans-serif";
-    ctx.fillText(w.obj, 24, 38);
-    ctx.fillStyle = "#c8b090";
-    ctx.fillText((LNAME[w.level] ?? "") + "   " + w.time.toFixed(1) + "s", 24, 56);
-    if (w.combo > 1) {
-      ctx.fillStyle = "#ffe08a";
-      ctx.font = "700 22px system-ui, sans-serif";
-      ctx.fillText(String(w.combo) + " HIT", VW - 160, 20);
-    }
-    if (p.dcd <= 0) {
-      ctx.fillStyle = "#9ad0e8";
-      ctx.fillRect(24, 76, 28, 4);
-    }
-    if (w.ally && w.level === 2) {
-      ctx.fillStyle = "#d7b4e0";
-      ctx.fillRect(24, 88, 80 * (w.ally.hp / w.ally.maxHp), 5);
-    }
-    if (w.focus > 0) {
-      ctx.fillStyle = "#ffe08a";
-      ctx.fillRect(24, 98, 70 * clamp(w.focus / 1.7, 0, 1), 4);
-    }
-    if (w.level === 4 && w.gallery) {
-      ctx.fillStyle = w.alarm >= 100 ? "#e24b3a" : "#c8b090";
-      ctx.fillRect(VW - 180, 52, 140 * clamp(w.alarm / 100, 0, 1), 4);
-    }
-    if (w.fast) {
-      ctx.fillStyle = "#f3e6c0";
-      ctx.font = "16px Georgia, 'Iowan Old Style', Palatino, serif";
-      ctx.fillText("Day " + String(w.days), VW - 140, 20);
-    }
-    if (w.hint && w.mode === "play") {
-      ctx.fillStyle = "rgba(10,8,8,0.55)";
-      ctx.fillRect(24, 112, 520, 22);
-      ctx.fillStyle = "#f6e6c0";
-      ctx.font = "14px system-ui, sans-serif";
-      ctx.fillText(w.hint, 32, 116);
-    }
-  }
-  if (w.bannerT > 0 && w.banner) {
-    ctx.fillStyle = "rgba(8,6,8,0.45)";
-    ctx.fillRect(0, VH * 0.38, VW, 56);
-    ctx.fillStyle = "#f6e6c0";
-    ctx.font = "700 26px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillText(w.banner, 48, VH * 0.4);
-  }
-  if (w.mode === "talk") {
-    const line = w.talk[w.talkI];
-    if (line) {
-      ctx.fillStyle = "rgba(10,8,10,0.78)";
-      ctx.fillRect(40, VH - 168, VW - 80, 140);
-      ctx.strokeStyle = "rgba(226,188,122,0.6)";
-      ctx.strokeRect(40, VH - 168, VW - 80, 140);
-      const portrait = line.port ? art.portrait[line.port] : undefined;
-      if (portrait) drawPortrait(ctx, portrait, 56, VH - 152, 88, 108);
-      ctx.fillStyle = "#e8c878";
-      ctx.font = "700 14px system-ui, sans-serif";
-      ctx.fillText(NAMES[line.who] ?? "", portrait ? 164 : 64, VH - 150);
-      ctx.fillStyle = "#f2ead8";
-      ctx.font = "18px Georgia, 'Iowan Old Style', Palatino, serif";
-      const shown = line.text.slice(0, Math.floor(w.talkShown));
-      wrapText(ctx, shown, portrait ? 164 : 64, VH - 124, portrait ? VW - 250 : VW - 150, 24);
-    }
-  }
-  if (w.mode === "done") {
-    ctx.fillStyle = "rgba(8,6,8,0.55)";
-    ctx.fillRect(0, 0, VW, VH);
-    ctx.fillStyle = "#f6e6c0";
-    ctx.font = "700 36px Georgia, 'Iowan Old Style', Palatino, serif";
-    ctx.fillText("CHAPTER CLEAR", 70, 160);
-    ctx.font = "18px system-ui, sans-serif";
-    ctx.fillText("Rank  " + w.rank + "     Time  " + w.time.toFixed(1) + "s", 74, 220);
-    ctx.fillText("Score  " + String(w.score) + "     Perfect reads  " + String(w.perfects), 74, 248);
-    ctx.fillText("Disarmed  " + String(w.disarmed) + "    Best combo  " + String(w.maxCombo), 74, 276);
-    ctx.fillText("Hits taken  " + String(w.hitsTaken), 74, 304);
-    ctx.fillText("Press Space to continue", 74, 360);
-  }
-  if (w.caption && w.mode === "play" && w.level > 0) {
-    ctx.fillStyle = "rgba(232,210,170,0.72)";
-    ctx.font = "12px Georgia, 'Iowan Old Style', Palatino, serif";
-    const cap = w.caption || (CAPTION[w.level] ?? "");
-    if (cap) ctx.fillText(cap, 24, VH - 118);
-  }
-}
-
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, max: number, lh: number): void {
+function wrap(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, max: number, lh: number): number {
   const words = text.split(" ");
   let line = "";
   let yy = y;
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i] ?? "";
-    const test = line ? line + " " + word : word;
-    if (ctx.measureText(test).width > max) {
+  for (const word of words) {
+    const next = line ? line + " " + word : word;
+    if (ctx.measureText(next).width > max && line) {
       ctx.fillText(line, x, yy);
       line = word;
       yy += lh;
-    } else line = test;
+    } else line = next;
   }
   if (line) ctx.fillText(line, x, yy);
+  return yy + lh;
+}
+
+function clock(t: number): string {
+  const s = Math.max(0, Math.floor(t));
+  return String(Math.floor(s / 60)) + ":" + String(s % 60).padStart(2, "0");
 }

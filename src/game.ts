@@ -1,59 +1,147 @@
+import { missionById, type GuardSpawn, type Mission, type XY } from "./missions";
+
+export const TS = 32;
 export const VW = 960;
 export const VH = 540;
+export const LEVELS = 6;
 
-export interface AABB { x: number; y: number; w: number; h: number }
-export interface Plat extends AABB { t: number; vx: number; k?: string; lim?: number }
-export interface Spark {
-  x: number; y: number; vx: number; vy: number;
-  life: number; max: number; size: number; color: string; kind: number;
-}
-export interface Ent extends AABB {
-  vx: number; vy: number; face: number;
-  hp: number; maxHp: number;
-  onG: boolean; onW: number;
-  st: string; stT: number;
-  coy: number; jbuf: number; dcd: number;
-  combo: number; inv: number; squash: number;
-  atkId: number; lastHit: number;
-  kind: string; ai: string;
-  pMin: number; pMax: number;
-  tel: number; telMax: number;
-  open: number; cool: number;
-  tag: string; did: boolean; buf: number;
-  bufT: number; hold: number; queue: number;
-}
-export interface Paper { x: number; y: number; got: boolean }
-export interface Extra { x: number; y: number; frame: string; face: number; sc: number }
-export interface Prop { x: number; y: number; k: string }
-export interface Flag { x: number; y: number; used: boolean }
-export interface Line { who: string; text: string; port: string }
-export interface Bolt { x: number; y: number; vx: number; life: number }
-export interface Ghost { x: number; y: number; face: number; life: number; frame: string }
+export type Mode = "title" | "select" | "talk" | "play" | "pause" | "done" | "finale" | "dead";
+
 export interface Inp {
-  l: boolean; r: boolean; u: boolean; d: boolean;
-  jump: boolean; jumpP: boolean;
-  atk: boolean; atkP: boolean; atkR: boolean;
-  dash: boolean; dashP: boolean;
-  dodge: boolean; dodgeP: boolean;
-  act: boolean; actP: boolean;
-  startP: boolean; pauseP: boolean;
+  x: number;
+  y: number;
+  mag: number;
+  run: boolean;
+  crouchP: boolean;
+  act: boolean;
+  actP: boolean;
+  throwP: boolean;
+  aimX: number;
+  aimY: number;
+  abilityP: boolean;
+  startP: boolean;
+  pauseP: boolean;
+  pick: number;
 }
-export type Mode = "title" | "select" | "talk" | "play" | "pause" | "dead" | "done" | "finale";
+
+export interface Line {
+  who: string;
+  text: string;
+  port: string;
+}
+
+interface Opt {
+  label: string;
+  value: string;
+}
+
+interface Prompt {
+  id: string;
+  q: string;
+  options: Opt[];
+}
+
+export interface Story {
+  courier: string;
+  train: string;
+  papers: string;
+  assembly: string;
+  warder: string;
+  signal: string;
+  downs: number;
+}
+
+export interface Guard {
+  x: number;
+  y: number;
+  face: number;
+  kind: string;
+  ai: "patrol" | "sus" | "alert" | "search" | "return" | "down";
+  tag: string;
+  range: number;
+  fov: number;
+  wx: number[];
+  wy: number[];
+  wi: number;
+  tx: number;
+  ty: number;
+  tel: number;
+  see: boolean;
+  stashed: boolean;
+  whistle: boolean;
+  homeX: number;
+  homeY: number;
+}
+
+interface Lamp {
+  x: number;
+  y: number;
+  r: number;
+  on: boolean;
+}
+
+interface Paper {
+  x: number;
+  y: number;
+  req: boolean;
+  got: boolean;
+}
+
+interface Lock {
+  x: number;
+  y: number;
+  open: boolean;
+}
+
+interface Noise {
+  x: number;
+  y: number;
+  r: number;
+  life: number;
+}
+
+interface Pebble {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+}
+
+interface Spark {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  size: number;
+}
+
+export interface Player {
+  x: number;
+  y: number;
+  face: number;
+  crouch: boolean;
+  hidden: boolean;
+  disguise: boolean;
+  channel: number;
+  drag: number;
+  step: number;
+}
 
 interface Save {
-  foes: Ent[];
+  guards: Guard[];
   papers: boolean[];
-  camMin: number;
-  wave: number;
-  bossDown: boolean;
-  flags: number;
-  days: number;
-  bars: boolean;
-  jatin: boolean;
-  disarmed: number;
-  alarm: number;
-  leaflets: number;
-  fireX: number;
+  locks: boolean[];
+  lamps: boolean[];
+  downs: number;
+  notes: number;
+  disguise: boolean;
+  uniform: boolean;
+  spotted: boolean;
+  chase: boolean;
+  x: number;
+  y: number;
 }
 
 export interface World {
@@ -63,29 +151,27 @@ export interface World {
   t: number;
   time: number;
   camX: number;
-  shake: number;
-  shakeT: number;
-  hitstop: number;
-  slomo: number;
-  player: Ent;
-  ally: Ent | null;
-  foes: Ent[];
-  plats: Plat[];
-  parts: Spark[];
-  rain: Spark[];
+  camY: number;
+  cols: number;
+  rows: number;
+  tiles: string[];
+  player: Player;
+  guards: Guard[];
+  lamps: Lamp[];
   papers: Paper[];
-  gems: Paper[];
-  extras: Extra[];
-  props: Prop[];
-  markX: number;
-  checks: Flag[];
-  hazards: AABB[];
-  bolts: Bolt[];
-  ghosts: Ghost[];
-  exitX: number;
-  fireX: number;
-  leaflets: number;
-  days: number;
+  locks: Lock[];
+  noises: Noise[];
+  pebble: Pebble | null;
+  checks: { x: number; y: number; used: boolean }[];
+  uniforms: { x: number; y: number; got: boolean }[];
+  choice: XY;
+  choiceId: string;
+  exit: XY;
+  guide: XY[];
+  story: Story;
+  prompt: Prompt | null;
+  asked: string;
+  agent: string;
   talk: Line[];
   talkI: number;
   talkShown: number;
@@ -94,1503 +180,1116 @@ export interface World {
   hint: string;
   obj: string;
   caption: string;
-  score: number;
-  rank: string;
-  combo: number;
-  comboT: number;
-  maxCombo: number;
-  disarmed: number;
+  actLabel: string;
+  detect: number;
+  lit: boolean;
+  phaseT: number;
+  spotted: boolean;
+  chase: boolean;
+  sprinting: boolean;
+  hugging: boolean;
+  peek: boolean;
+  uniformHeld: boolean;
+  notes: number;
+  heat: number;
   hitsTaken: number;
-  perfects: number;
-  focus: number;
-  alarm: number;
+  downs0: number;
   lesson: number;
-  heavyOn: boolean;
-  dashOn: boolean;
+  rank: string;
+  score: number;
+  revolt: number;
+  trust: number;
+  headline: string;
   chkX: number;
   chkY: number;
-  deadT: number;
-  width: number;
-  bg: string;
-  rainOn: boolean;
-  gallery: boolean;
-  camMin: number;
-  endTalk: string;
-  bossDown: boolean;
-  wave: number;
-  fast: boolean;
-  broke: boolean;
-  jatin: boolean;
-  bars: boolean;
-  flags: number;
-  burn: number;
-  aid: number;
-  stand: number;
-  leafCd: number;
-  breadX: number;
-  breadOn: boolean;
   save: Save | null;
+  deadT: number;
+  rain: Spark[];
+  rainOn: boolean;
+  width: number;
+  height: number;
 }
 
 export const NAMES: Record<string, string> = {
-  bhagat: "BHAGAT SINGH",
-  sukhdev: "SUKHDEV",
-  azad: "CHANDRASHEKHAR AZAD",
-  dutt: "BATUKESHWAR DUTT",
-  durga: "DURGAWATI DEVI",
-  jatin: "JATINDRA NATH DAS",
-  narrator: "",
+  netaji: "NETAJI",
+  wire: "WIRE",
+  kite: "KITE",
+  veil: "VEIL",
+  key: "KEY",
 };
-
-export const TALKS: Record<string, Line[]> = {
-  l1: [
-    { who: "sukhdev", text: "Scott ordered the charge. Lala ji is dying. The dragnet is already on the roofs.", port: "sukhdev" },
-    { who: "bhagat", text: "Then we cross. Knock them down if you must. Nobody dies tonight.", port: "bhagat" },
-    { who: "sukhdev", text: "Break the lathi line or go over the scaffolds. The cordon closes behind you. The officer on the last roof has to fall.", port: "sukhdev" },
-  ],
-  l2: [
-    { who: "durga", text: "Walk at my shoulder. If you stray, or strike, they will see you are not my husband.", port: "durga" },
-    { who: "bhagat", text: "The platform first. Then the roof of the train, and do not leave her between the cars.", port: "bhagat" },
-    { who: "durga", text: "Slide the lamps. On the last carriage a rifleman has the coupling. Close on him. I will trip anyone who grabs me.", port: "durga" },
-  ],
-  l3: [
-    { who: "azad", text: "They have the workshop. Three bundles of the press. Leave the machine.", port: "azad" },
-    { who: "bhagat", text: "I will not leave a comrade's words in their hands.", port: "bhagat" },
-    { who: "azad", text: "The fire climbs the stair behind you. I will hold the door when you have the papers. Break whoever stands on them.", port: "azad" },
-  ],
-  l4: [
-    { who: "dutt", text: "Empty benches. Smoke, not shrapnel. The leaflet is the blow.", port: "dutt" },
-    { who: "bhagat", text: "If they take us, we speak in court. Stay with me to the gallery.", port: "bhagat" },
-    { who: "dutt", text: "A fight fills the house. Slip the cones, throw eight leaflets from the gallery, then stand still and be taken. I throw with you.", port: "dutt" },
-  ],
-  l4end: [
-    { who: "narrator", text: "Two low-intensity smoke bombs fall toward empty benches. Leaflets flood the hall.", port: "" },
-    { who: "bhagat", text: "It is easy to kill individuals but you cannot kill the ideas. Great empires crumbled while the ideas survived.", port: "bhagat" },
-    { who: "narrator", text: "They stand and wait. Arrest is the next sentence of the plan.", port: "" },
-  ],
-  l5: [
-    { who: "bhagat", text: "We will be treated as political prisoners. We will not eat until they hear us.", port: "bhagat" },
-    { who: "narrator", text: "Lahore Central Jail, June 1929. A hunger strike begins. The warders come anyway.", port: "" },
-    { who: "bhagat", text: "Read them. A perfect dodge keeps the body. When they offer bread, do not take it.", port: "bhagat" },
-  ],
-  jatin: [
-    { who: "narrator", text: "13 September 1929. Jatindra Nath Das dies on the sixty-third day. The country erupts. The fast does not.", port: "jatin" },
-  ],
-  l5end: [
-    { who: "narrator", text: "Early October 1929. After more than a hundred days, the strike ends. Some demands are met.", port: "" },
-    { who: "narrator", text: "4 October 1930. From prison, Bhagat Singh writes to his father. A later year. A longer wait.", port: "bhagat" },
-  ],
-};
-
-export const CAPTION = [
-  "",
-  "Lahore, 30 October 1928. After the lathi charge on the Simon Commission protest.",
-  "December 1928. Durgawati Devi escorts Bhagat Singh out of Lahore in disguise.",
-  "A secret HSRA workshop. The raid is already in the stair.",
-  "Delhi, 8 April 1929. The Central Legislative Assembly.",
-  "Lahore Central Jail, 1929. A strike of endurance.",
-];
 
 export const LNAME = [
   "",
-  "ROOFTOP DRAGNET",
-  "NIGHT TRAIN",
-  "THE WORKSHOP",
+  "THE LAHORE ROOFS",
+  "THE ARMS TRAIN",
+  "THE PRESS",
   "THE ASSEMBLY",
-  "THE LONG FAST",
+  "THE LOCK",
+  "THE VICEROY'S HOUSE",
+];
+
+export const CAPTION = [
+  "",
+  "Lahore. Kite takes the roofs above a watched bazaar.",
+  "A night yard. Veil walks in someone else's coat.",
+  "The workshop is lit. Key is here for the press.",
+  "The Imperial Assembly. Veil is inside the marble.",
+  "The jail. Key opens a wing, and a question.",
+  "The Viceroy's house. The signal, then the gate.",
+];
+
+const AGENT = ["", "kite", "veil", "key", "veil", "key", "kite"];
+
+const OBJ = [
+  "",
+  "Cross the roofs. Take the troop plans. The courier is still below.",
+  "Reach the train. Sabotage it, or take it for the cells.",
+  "The hall is lit. Bring the press out.",
+  "The declaration is in the side room. Swap it, or read it aloud.",
+  "Open the cell. The leaders, then the yard.",
+  "Light the way. The column is waiting on your signal.",
 ];
 
 const HINTS = [
-  "Move. A and D, or the pad.",
-  "Jump. Space, or Jump.",
-  "Tap Attack. Three taps is a string. The third blow puts them down.",
-  "Dodge as the baton lifts. Dodge through the swing and the next blow lands harder.",
-  "Hold Attack, then let go. The heavy comes on the release. A lathi line turns a tap aside.",
+  "The stick sneaks on a light push. A full push runs.",
+  "Crouch. Grass, a basket, and the dark hide a low step.",
+  "Action subdues from behind, hides you, or turns a lock.",
+  "Throw a pebble. Ability is this spy's own trick.",
   "",
 ];
 
+const PROMPTS: Record<string, Prompt> = {
+  courier: {
+    id: "courier",
+    q: "The courier is pinned under the bazaar lamps. The plans are already in your hand.",
+    options: [
+      { label: "Save the courier", value: "save" },
+      { label: "Take the plans and go", value: "plans" },
+    ],
+  },
+  train: {
+    id: "train",
+    q: "The arms train is coupled and quiet. Wire is waiting on your word.",
+    options: [
+      { label: "Sabotage the train", value: "sabotage" },
+      { label: "Hijack it for the cells", value: "hijack" },
+    ],
+  },
+  papers: {
+    id: "papers",
+    q: "The police are in the hall. You cannot carry the whole room.",
+    options: [
+      { label: "Take the press", value: "press" },
+      { label: "Take the forged passes", value: "passes" },
+      { label: "Both, if the lamps stay dead", value: "both" },
+    ],
+  },
+  assembly: {
+    id: "assembly",
+    q: "The House is in session. The file can be swapped, or the declaration can be read.",
+    options: [
+      { label: "Swap the documents", value: "swap" },
+      { label: "Broadcast the declaration", value: "broadcast" },
+    ],
+  },
+  warder: {
+    id: "warder",
+    q: "The turncoat warder offers the east door. He wants to walk out with the leaders.",
+    options: [
+      { label: "Spare him and use the door", value: "spare" },
+      { label: "Lock him in", value: "lock" },
+    ],
+  },
+  signal: {
+    id: "signal",
+    q: "The lamp room is yours. Netaji's column is on the road.",
+    options: [
+      { label: "Wait for the column", value: "wait" },
+      { label: "Light the signal now", value: "early" },
+    ],
+  },
+};
+
 export function blankInp(): Inp {
   return {
-    l: false, r: false, u: false, d: false,
-    jump: false, jumpP: false, atk: false, atkP: false, atkR: false,
-    dash: false, dashP: false, dodge: false, dodgeP: false,
-    act: false, actP: false, startP: false, pauseP: false,
+    x: 0, y: 0, mag: 0, run: false, crouchP: false,
+    act: false, actP: false, throwP: false, aimX: 0, aimY: 0, abilityP: false,
+    startP: false, pauseP: false, pick: 0,
   };
+}
+
+function emptyStory(): Story {
+  return { courier: "", train: "", papers: "", assembly: "", warder: "", signal: "", downs: 0 };
 }
 
 function clamp(n: number, a: number, b: number): number {
   return n < a ? a : n > b ? b : n;
 }
 
-function aabb(a: AABB, b: AABB): boolean {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+function say(who: string, text: string, port = who): Line {
+  return { who, text, port };
 }
 
-export function mkEnt(x: number, y: number, kind: string): Ent {
-  const hp = kind === "player" ? 5 : kind === "durga" ? 3 : kind === "inspector" ? 6 : kind === "officer" || kind === "shield" ? 4 : 3;
-  return {
-    x, y, w: kind === "inspector" ? 30 : 26, h: 78, vx: 0, vy: 0, face: 1,
-    hp, maxHp: hp, onG: false, onW: 0, st: "idle", stT: 0,
-    coy: 0, jbuf: 0, dcd: 0, combo: 1, inv: 0, squash: 0,
-    atkId: 1, lastHit: 0, kind, ai: "patrol", pMin: x - 80, pMax: x + 80,
-    tel: 0, telMax: 1, open: 0, cool: 0, tag: "", did: false, buf: 0,
-    bufT: 0, hold: 0, queue: 0,
-  };
-}
-
-function copyEnt(e: Ent): Ent {
-  return { ...e };
-}
-
-export function seedRain(n: number): Spark[] {
-  const a: Spark[] = [];
-  for (let i = 0; i < n; i++) {
-    a.push({
-      x: Math.random() * (VW + 200), y: Math.random() * VH,
-      vx: -220, vy: 680, life: 1, max: 1, size: 8 + Math.random() * 10,
-      color: "rgba(180,200,220,0.35)", kind: 1,
-    });
-  }
-  return a;
-}
-
-function burst(w: World, x: number, y: number, n: number, color: string, spd: number): void {
-  for (let i = 0; i < n; i++) {
-    if (w.parts.length > 72) w.parts.shift();
-    const a = Math.random() * Math.PI * 2;
-    const s = spd * (0.4 + Math.random());
-    w.parts.push({
-      x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 80,
-      life: 0.32 + Math.random() * 0.2, max: 0.55, size: 2 + Math.random() * 3, color, kind: 0,
-    });
-  }
-}
-
-function roof(list: Plat[], x: number, y: number, w: number, k = "brick"): void {
-  list.push({ x, y, w, h: VH - y + 40, t: 0, vx: 0, k });
-}
-function step(list: Plat[], x: number, y: number, w: number, k = "scaffold"): void {
-  list.push({ x, y, w, h: 28, t: 1, vx: 0, k });
-}
-function block(list: Plat[], x: number, y: number, w: number, h: number, t = 0, k = "brick"): void {
-  list.push({ x, y, w, h, t, vx: 0, k });
-}
-function car(list: Plat[], x: number, y: number, w: number, vx = 0, lim = 0): void {
-  list.push({ x, y, w, h: 36, t: vx !== 0 ? 3 : 0, vx, k: "iron", lim });
-}
-
-function foe(x: number, y: number, kind: string, face: number, tag = ""): Ent {
-  const e = mkEnt(x, y, kind);
-  e.face = face;
-  e.tag = tag;
-  e.pMin = x - 70;
-  e.pMax = x + 120;
-  if (tag === "wave" || tag === "wait") {
-    e.ai = "wait";
-    e.hp = 0;
-    e.st = "idle";
-  }
-  if (tag === "watch") e.ai = "watch";
-  if (tag === "march") {
-    e.ai = "march";
-    e.face = -1;
-    e.pMin = x - 520;
-    e.pMax = x + 40;
-  }
-  if (tag === "drill") e.ai = "drill";
-  return e;
-}
-
-function buildLevel(id: number): Pick<World,
-  "plats" | "foes" | "papers" | "gems" | "extras" | "props" | "markX" | "checks" | "hazards" | "exitX" | "width" | "bg" | "rainOn" | "obj" | "caption" | "ally"
-> {
-  const plats: Plat[] = [];
-  const foes: Ent[] = [];
-  const papers: Paper[] = [];
-  const gems: Paper[] = [];
-  const extras: Extra[] = [];
-  const props: Prop[] = [];
-  const checks: Flag[] = [];
-  const hazards: AABB[] = [];
-  let exitX = 4000;
-  let width = 4400;
-  let bg = "lahore";
-  let rainOn = false;
-  let obj = "";
-  let markX = 0;
-  const caption = CAPTION[id] ?? "";
-  let ally: Ent | null = null;
-
+function brief(id: number, s: Story): Line[] {
   if (id === 1) {
-    bg = "lahore"; rainOn = true; width = 7600; exitX = 7100;
-    obj = "Cross the roofs. Drop the officer. Do not kill.";
-    roof(plats, 0, 468, 820);
-    foes.push(foe(520, 200, "constable", -1, "drill"));
-    props.push({ x: 180, y: 448, k: "lantern" }, { x: 640, y: 448, k: "pot" });
-    extras.push({ x: 260, y: 250, frame: "constable_attack", face: 1, sc: 0.55 });
-    step(plats, 880, 380, 200);
-    step(plats, 1160, 280, 220);
-    foes.push(foe(1240, 40, "constable", 1, ""));
-    gems.push({ x: 1280, y: 240, got: false });
-    roof(plats, 900, 508, 1500);
-    block(plats, 1320, 392, 420, 22, 2, "scaffold");
-    foes.push(foe(1460, 420, "shield", -1, "march"));
-    foes.push(foe(1600, 420, "shield", -1, "march"));
-    step(plats, 1280, 250, 460);
-    roof(plats, 2400, 440, 980);
-    foes.push(foe(2680, 180, "officer", -1, ""));
-    foes.push(foe(2920, 180, "constable", 1, ""));
-    checks.push({ x: 3100, y: 440, used: false });
-    props.push({ x: 2500, y: 418, k: "crate" });
-    roof(plats, 3480, 400, 640);
-    step(plats, 3600, 270, 180);
-    gems.push({ x: 3660, y: 230, got: false });
-    extras.push({ x: 3800, y: 220, frame: "officer_idle", face: -1, sc: 0.5 });
-    roof(plats, 4200, 470, 280);
-    block(plats, 4560, 450, 260, 36, 6, "brick");
-    roof(plats, 4900, 430, 320);
-    step(plats, 5080, 300, 160);
-    foes.push(foe(5140, 80, "rifle", -1, ""));
-    hazards.push({ x: 4960, y: 340, w: 140, h: 22 });
-    foes.push(foe(4300, 200, "constable", 1, ""));
-    block(plats, 5400, 250, 40, 200, 0, "brick");
-    block(plats, 5620, 210, 40, 230, 0, "brick");
-    step(plats, 5480, 340, 100);
-    roof(plats, 5800, 460, 1600);
-    block(plats, 5800, 300, 1500, 22, 2, "brick");
-    foes.push(foe(6200, 200, "shield", -1, ""));
-    foes.push(foe(6600, 200, "inspector", -1, "boss"));
-    block(plats, 7000, 280, 28, 200, 4, "iron");
-    props.push({ x: 6000, y: 438, k: "lantern" });
-  } else if (id === 2) {
-    bg = "station"; rainOn = true; width = 8200; exitX = 7600;
-    obj = "Stay with Durga. Then take the rifleman on the last car.";
-    roof(plats, 0, 470, 2200, "stone");
-    ally = mkEnt(90, 300, "durga");
-    foes.push(foe(460, 200, "constable", 1, "watch"));
-    foes.push(foe(1080, 200, "officer", -1, "watch"));
-    foes.push(foe(1680, 200, "rifle", 1, "watch"));
-    step(plats, 700, 330, 200, "stone");
-    gems.push({ x: 760, y: 290, got: false });
-    checks.push({ x: 1960, y: 470, used: false });
-    props.push({ x: 240, y: 448, k: "bench" }, { x: 1500, y: 448, k: "crate" });
-    extras.push({ x: 300, y: 280, frame: "officer_idle", face: 1, sc: 0.5 });
-    car(plats, 2380, 400, 640);
-    car(plats, 3160, 360, 560);
-    hazards.push({ x: 3320, y: 250, w: 180, h: 28 });
-    car(plats, 3860, 420, 620, 64, 4480);
-    plats.push({ x: 3860, y: 300, w: 620, h: 18, t: 5, vx: 64, k: "iron", lim: 4480 });
-    step(plats, 2200, 500, 180, "stone");
-    step(plats, 3040, 490, 120, "stone");
-    foes.push(foe(4100, 160, "constable", -1, ""));
-    car(plats, 4700, 390, 520);
-    roof(plats, 5300, 520, 2600, "stone");
-    car(plats, 5600, 400, 700, 52, 6600);
-    foes.push(foe(6000, 160, "rifle", -1, "boss"));
-    foes.push(foe(5480, 250, "officer", 1, ""));
-    block(plats, 7300, 300, 28, 220, 4, "iron");
-    gems.push({ x: 6800, y: 470, got: false });
-  } else if (id === 3) {
-    bg = "press"; rainOn = false; width = 5600; exitX = 5200;
-    obj = "Three bundles. Outrun the fire.";
-    roof(plats, 0, 490, 900, "wood");
-    step(plats, 220, 390, 220, "wood");
-    roof(plats, 480, 320, 360, "wood");
-    papers.push({ x: 280, y: 450, got: false });
-    foes.push(foe(620, 80, "constable", -1, ""));
-    props.push({ x: 80, y: 468, k: "press" }, { x: 700, y: 298, k: "crate" });
-    roof(plats, 980, 470, 700, "wood");
-    checks.push({ x: 1100, y: 470, used: false });
-    step(plats, 1200, 350, 200, "wood");
-    roof(plats, 1500, 260, 420, "wood");
-    papers.push({ x: 1680, y: 220, got: false });
-    foes.push(foe(1580, 40, "shield", -1, ""));
-    foes.push(foe(1760, 40, "officer", 1, ""));
-    gems.push({ x: 1860, y: 210, got: false });
-    block(plats, 2100, 460, 280, 36, 6, "wood");
-    roof(plats, 2460, 420, 520, "wood");
-    step(plats, 2700, 300, 180, "wood");
-    foes.push(foe(2780, 60, "rifle", -1, ""));
-    papers.push({ x: 2920, y: 380, got: false });
-    roof(plats, 3100, 480, 900, "wood");
-    checks.push({ x: 3400, y: 480, used: false });
-    block(plats, 3600, 450, 240, 36, 8, "wood");
-    roof(plats, 4000, 400, 480, "wood");
-    foes.push(foe(4200, 120, "constable", -1, "wave"));
-    foes.push(foe(4380, 120, "shield", -1, "wave"));
-    foes.push(foe(4560, 80, "rifle", -1, "wave"));
-    roof(plats, 4600, 490, 800, "wood");
-    block(plats, 5120, 330, 26, 180, 4, "iron");
-    extras.push({ x: 200, y: 200, frame: "officer_idle", face: 1, sc: 0.45 });
-  } else if (id === 4) {
-    bg = "assembly"; rainOn = false; width = 6200; exitX = 5800; markX = 5000;
-    obj = "Slip the hall. Throw eight leaflets. Then stand.";
-    roof(plats, 0, 480, 2400, "marble");
-    roof(plats, 360, 310, 1100, "marble");
-    foes.push(foe(520, 160, "officer", -1, "watch"));
-    foes.push(foe(980, 160, "rifle", 1, "watch"));
-    foes.push(foe(1500, 220, "constable", -1, "watch"));
-    foes.push(foe(1900, 220, "officer", 1, "watch"));
-    checks.push({ x: 2100, y: 480, used: false });
-    props.push({ x: 160, y: 458, k: "bench" }, { x: 900, y: 288, k: "lamp" });
-    gems.push({ x: 700, y: 270, got: false });
-    step(plats, 2500, 400, 180, "marble");
-    roof(plats, 2760, 470, 600, "marble");
-    hazards.push({ x: 2860, y: 360, w: 160, h: 24 });
-    roof(plats, 3500, 450, 2400, "marble");
-    roof(plats, 3800, 290, 700, "marble");
-    foes.push(foe(4000, 140, "officer", -1, "wave"));
-    foes.push(foe(4300, 140, "shield", -1, "wave"));
-    extras.push({ x: 420, y: 180, frame: "officer_idle", face: 1, sc: 0.42 });
+    return [
+      say("netaji", "Arun Menon. Kite. Kozhikode taught you roofs. Tonight Lahore is the map, and the Raj has its troop plans over the bazaar."),
+      say("netaji", "Give me blood, and I will give you freedom. I am asking for your nerve, not a body on the stones. The old Lahore names are whispered here. They are not the ones I sent."),
+      say("wire", "Vents run the length of the market. The street is lit, and the street is theirs. I have the radio.", "wire"),
+      say("kite", "Then I take the high stone. If the courier is still under those lamps, I am not leaving him to the cordon."),
+    ];
+  }
+  if (id === 2) {
+    const react = s.courier === "save"
+      ? "You brought the courier off the roofs. I do not forget a life kept. The yard is a little blinder for it."
+      : s.courier === "plans"
+        ? "The plans are on my table, and so is the price. The yard knows a thief was on the roofs."
+        : "The arms train is in the yard. I need it ruined, or I need it ours.";
+    return [
+      say("netaji", react),
+      say("netaji", "Leela Sen. Veil. Dhaka. A coat, a walk, a face that belongs on the platform. That is your door."),
+      say("veil", "Put me beside the clerks. I will be one of them until I choose not to be."),
+      say("wire", "Sabotage keeps the rifles out of the cantonment. Hijack arms the cells. Both will be heard.", "wire"),
+    ];
+  }
+  if (id === 3) {
+    const react = s.train === "hijack"
+      ? "The train is ours. The workshop will be angry, and brighter."
+      : s.train === "sabotage"
+        ? "The train will not reach the cantonment. You bought the press a quieter hour."
+        : "The press is the voice that travels after we leave the room.";
+    return [
+      say("netaji", react),
+      say("netaji", "Rajan Pillai. Key. Travancore. The workshop door is a lock, and the hall is a lamp. Bring me a press, or passes, and leave the police in the dark."),
+      say("key", "The hall is theirs until the lamps go. I will not carry more than I can run with."),
+      say("wire", "The dark passage is yours. The hall is theirs. Cut the light if a sentry turns.", "wire"),
+    ];
+  }
+  if (id === 4) {
+    const react = s.papers === "both"
+      ? "You carried the press and the passes. Bold. They will search the marble twice."
+      : s.papers === "passes"
+        ? "The passes are clean. The Assembly doors will believe you."
+        : "The press is moving. Now the House itself.";
+    return [
+      say("netaji", react),
+      say("netaji", "Leela Sen. Veil. Dhaka. The House is in session. A borrowed face crosses the marble. Swap their file, or let the House hear the declaration."),
+      say("veil", "Put me in the gallery. I will look as if I belong, until I choose not to."),
+    ];
+  }
+  if (id === 5) {
+    const react = s.assembly === "broadcast"
+      ? "They heard you in the House. The jails will be awake. Good. Let them look at the wrong doors."
+      : "The file is swapped. The House will argue with itself while you open a cell.";
+    return [
+      say("netaji", react),
+      say("netaji", "Rajan Pillai. Key. Travancore. Locks are a dialect you already speak. The leaders of the northern cell are in the west wing. Bring them out."),
+      say("key", "There is a warder who wants to live in the next India. I will hear him before I decide which door he walks through."),
+      say("wire", "East door is his offer. I do not trust a man who bargains from a bunch of keys.", "wire"),
+    ];
+  }
+  const react = s.warder === "spare"
+    ? "You let the warder walk. He left his post. I can use a man who has already changed sides."
+    : s.warder === "lock"
+      ? "You locked him in. The court will have heard the bolt. So be it."
+      : "This is the last door.";
+  return [
+    say("netaji", react),
+    say("netaji", "Kite, again. The Viceroy's house. You open the roof, you take the lamp room, and you tell me when the gate is mine. Dilli Chalo."),
+    say("kite", "The others are already in the walls. I will put the signal where you can see it from the road."),
+    say("wire", "Wait for the column if you can. Light it early only if the court wakes.", "wire"),
+  ];
+}
+
+export function epilogue(w: World): string[] {
+  const s = w.story;
+  const lines: string[] = [];
+  if (s.courier === "save") lines.push("Kite went back for the courier. The man carried the next night's map.");
+  else if (s.courier === "plans") lines.push("Kite kept the plans and left the courier in the lamps. The yard was waiting.");
+  if (s.train === "sabotage") lines.push("Veil ruined the arms train. The cantonment woke to empty wagons.");
+  else if (s.train === "hijack") lines.push("Veil took the train. The cells met it down the line, rifles and all.");
+  if (s.papers === "press") lines.push("Key carried the press out of the firelight.");
+  else if (s.papers === "passes") lines.push("Key carried the forged passes, and the real press burned.");
+  else if (s.papers === "both") lines.push("Key carried both, and the raid dogged the cell for a day.");
+  if (s.assembly === "swap") lines.push("Veil swapped the file. The House condemned a policy it had just signed.");
+  else if (s.assembly === "broadcast") lines.push("Veil read the declaration into the House. The city heard it before the clerks did.");
+  if (s.warder === "spare") lines.push("Key let the warder walk out with the leaders.");
+  else if (s.warder === "lock") lines.push("Key turned the warder's own lock and left him in the wing.");
+  if (s.signal === "wait") lines.push("Kite held the signal until the column was on the avenue.");
+  else if (s.signal === "early") lines.push("Kite lit the signal early. The column came at a run.");
+  if (s.downs > 0) lines.push("Along the way, " + String(s.downs) + (s.downs === 1 ? " sentry was laid down quietly." : " sentries were laid down quietly."));
+  else lines.push("No sentry was put on the floor. The route stayed a rumor.");
+  const trust = trustOf(s);
+  if (trust >= 5 && s.downs <= 1) {
+    lines.push("Netaji's column entered a city that had already opened its gates. By morning the Raj was a closed office, and the first argument of a free India was who would speak, not who would rule them.");
+  } else if (s.downs >= 4 || (s.assembly === "broadcast" && s.train === "hijack")) {
+    lines.push("The column came in hard, on roads the cell had already broken. The Raj fell before noon. Freedom arrived with a long list of sleeping sentries and a louder argument about the morning after.");
+  } else if (s.signal === "early") {
+    lines.push("The lamp over the Viceroy's house burned, and the column answered. The Raj did not survive the night. The republic that followed was impatient, and it was theirs.");
   } else {
-    bg = "cell"; rainOn = false; width = 1280; exitX = 99999; markX = 0;
-    obj = "Read the warders. Refuse the bread.";
-    roof(plats, 0, 480, 1280, "cell");
-    step(plats, 160, 390, 180, "cell");
-    step(plats, 200, 300, 120, "cell");
-    props.push({ x: 40, y: 250, k: "bars" }, { x: 980, y: 458, k: "bucket" });
-    gems.push({ x: 240, y: 250, got: false });
+    lines.push("The gate opened. The column walked through it. The Raj ended there, not in a courtroom, and the cell kept the keys it had cut.");
   }
-  return { plats, foes, papers, gems, extras, props, markX, checks, hazards, exitX, width, bg, rainOn, obj, caption, ally };
+  lines.push("Dilli Chalo. The road was already theirs.");
+  return lines;
 }
 
-function takeSave(w: World): Save {
-  return {
-    foes: w.foes.map(copyEnt),
-    papers: w.papers.map((p) => p.got),
-    camMin: w.camMin,
-    wave: w.wave,
-    bossDown: w.bossDown,
-    flags: w.flags,
-    days: w.days,
-    bars: w.bars,
-    jatin: w.jatin,
-    disarmed: w.disarmed,
-    alarm: w.alarm,
-    leaflets: w.leaflets,
-    fireX: w.fireX,
-  };
+export function trustOf(s: Story): number {
+  let n = 0;
+  if (s.courier === "save") n += 1;
+  if (s.train === "sabotage") n += 1;
+  if (s.papers === "press" || s.papers === "passes") n += 1;
+  if (s.assembly === "swap") n += 1;
+  if (s.warder === "spare") n += 1;
+  if (s.signal === "wait") n += 1;
+  return n;
 }
 
-function applySave(w: World, s: Save): void {
-  w.foes = s.foes.map(copyEnt);
-  for (let i = 0; i < w.papers.length; i++) {
-    const p = w.papers[i];
-    if (p) p.got = s.papers[i] === true;
-  }
-  w.camMin = s.camMin;
-  w.wave = s.wave;
-  w.bossDown = s.bossDown;
-  w.flags = s.flags;
-  w.days = s.days;
-  w.bars = s.bars;
-  w.jatin = s.jatin;
-  w.disarmed = s.disarmed;
-  w.alarm = s.alarm;
-  w.leaflets = s.leaflets;
-  w.fireX = s.fireX;
-  w.bolts = [];
+export function revoltOf(s: Story, notes: number, heat: number): number {
+  let n = 24;
+  if (s.courier) n += 8;
+  if (s.train === "hijack") n += 12;
+  if (s.train === "sabotage") n += 7;
+  if (s.papers === "both") n += 8;
+  else if (s.papers) n += 6;
+  if (s.assembly === "broadcast") n += 14;
+  else if (s.assembly === "swap") n += 8;
+  if (s.warder) n += 6;
+  if (s.signal === "early") n += 10;
+  else if (s.signal === "wait") n += 6;
+  n += Math.min(4, notes) * 3;
+  n -= heat * 5;
+  return clamp(n, 0, 100);
 }
 
-export function supportTop(plats: Plat[], x: number, footY: number): number | null {
-  let best: number | null = null;
-  for (let i = 0; i < plats.length; i++) {
-    const pl = plats[i];
-    if (!pl || pl.t === 4 || x < pl.x + 1 || x > pl.x + pl.w - 1) continue;
-    const dy = pl.y - footY;
-    if (dy < -80 || dy > 160) continue;
-    if (best === null || pl.y < best) best = pl.y;
-  }
-  return best;
+function headlineFor(w: World): string {
+  const s = w.story;
+  if (w.level === 1) return s.courier === "plans" ? "TROOP PLANS TAKEN IN LAHORE" : "COURIER CLEAR OF THE ROOFS";
+  if (w.level === 2) return s.train === "hijack" ? "ARMS TRAIN IN REBEL HANDS" : "ARMS TRAIN LEFT DEAD ON THE SIDING";
+  if (w.level === 3) return s.papers === "passes" ? "FORGED PASSES ON THE ROAD" : "THE PRESS IS OUT OF THE WORKSHOP";
+  if (w.level === 4) return s.assembly === "broadcast" ? "THE DECLARATION IS READ IN THE HOUSE" : "A FILE IS SWAPPED IN THE ASSEMBLY";
+  if (w.level === 5) return s.warder === "lock" ? "THE WING IS OPEN. THE WARDER STAYS" : "REBEL LEADERS WALK OUT";
+  return s.signal === "early" ? "THE SIGNAL BURNS OVER THE HOUSE" : "THE COLUMN IS ON THE AVENUE";
 }
 
-function integrate(e: Ent, plats: Plat[], dt: number, crouch: boolean, gatesOpen: boolean): void {
-  if (crouch && e.h > 50) {
-    e.y += e.h - 46;
-    e.h = 46;
-  } else if (!crouch && e.h < 70) {
-    const ny = e.y - (78 - e.h);
-    const test: AABB = { x: e.x, y: ny, w: e.w, h: 78 };
-    let blocked = false;
-    for (let i = 0; i < plats.length; i++) {
-      const pl = plats[i];
-      if (!pl || pl.t === 1 || (pl.t === 4 && gatesOpen)) continue;
-      if (aabb(test, pl)) blocked = true;
-    }
-    if (!blocked) { e.y = ny; e.h = 78; }
-  }
-  const ox = e.x;
-  e.onW = 0;
-  e.x += e.vx * dt;
-  for (let i = 0; i < plats.length; i++) {
-    const pl = plats[i];
-    if (!pl || pl.t === 1 || pl.h <= 40 || (pl.t === 4 && gatesOpen)) continue;
-    if (!aabb(e, pl)) continue;
-    const rise = e.y + e.h - pl.y;
-    if (rise > 0 && rise <= 42 && e.vy >= -40) e.y = pl.y - e.h;
-    else {
-      if (e.vx > 0 || ox + e.w <= pl.x + 1) { e.x = pl.x - e.w; e.onW = 1; }
-      else { e.x = pl.x + pl.w; e.onW = -1; }
-      e.vx = 0;
-    }
-  }
-  e.y += e.vy * dt;
-  e.onG = false;
-  for (let i = 0; i < plats.length; i++) {
-    const pl = plats[i];
-    if (!pl || (pl.t === 4 && gatesOpen) || !aabb(e, pl)) continue;
-    const prevBottom = e.y - e.vy * dt + e.h;
-    if (e.vy >= 0 && pl.t !== 2 && pl.t !== 5 && prevBottom <= pl.y + 12) {
-      e.y = pl.y - e.h;
-      e.vy = 0;
-      e.onG = true;
-    } else if (pl.t !== 1 && e.vy < 0) {
-      e.y = pl.y + pl.h;
-      e.vy = 0;
-    } else if (pl.t !== 1 && pl.h > 40) {
-      if (ox + e.w <= pl.x) e.x = pl.x - e.w;
-      else if (ox >= pl.x + pl.w) e.x = pl.x + pl.w;
-    }
-  }
+function tileAt(w: World, tx: number, ty: number): string {
+  if (tx < 0 || ty < 0 || tx >= w.cols || ty >= w.rows) return "#";
+  return w.tiles[ty]?.[tx] ?? "#";
 }
 
-function weary(w: World): number {
-  if (!w.fast) return 1;
-  return clamp(1 - w.days / 340, 0.74, 1);
+function lockAt(w: World, tx: number, ty: number): Lock | undefined {
+  return w.locks.find((l) => l.x === tx && l.y === ty);
 }
 
-function perfect(w: World, p: Ent): void {
-  w.perfects += 1;
-  w.focus = 1.7;
-  w.hitstop = Math.max(w.hitstop, 0.07);
-  w.slomo = 0.18;
-  w.shake = 6;
-  w.shakeT = 0.12;
-  w.banner = "READ";
-  w.bannerT = 0.45;
-  if (w.jatin && p.hp < p.maxHp) p.hp += 1;
-  burst(w, p.x + p.w * 0.5, p.y + 30, 10, "#f0e2a8", 220);
-}
-
-function hurt(w: World, e: Ent, dmg: number, dir: number, readable: boolean): void {
-  if (e.st === "down") return;
-  if (e.inv > 0) {
-    if (readable && e.kind === "player" && e.st === "dodge") perfect(w, e);
-    return;
-  }
-  e.hp -= dmg;
-  e.inv = e.kind === "player" ? 0.7 : 0.3;
-  e.vx = dir * 260;
-  e.vy = -200;
-  e.st = e.hp <= 0 ? "down" : "hit";
-  e.stT = 0;
-  e.squash = 1;
-  if (w.player !== e) w.player.squash = 0.85;
-  w.shakeT = 0.2;
-  w.shake = 7;
-  burst(w, e.x + e.w * 0.5, e.y + 30, 8, "#e7c98a", 240);
-  if (e.kind === "player") {
-    w.hitsTaken += 1;
-    w.combo = 0;
-    w.focus = 0;
-    if (e.hp <= 0) {
-      w.mode = "dead";
-      w.deadT = 0.7;
-      w.banner = "SEIZED";
-      w.bannerT = 0.8;
-    }
-  } else if (e.kind === "durga" && e.hp <= 0) {
-    w.mode = "dead";
-    w.deadT = 0.9;
-    w.banner = "SHE IS TAKEN";
-    w.bannerT = 1;
-  }
-}
-
-function facing(e: Ent, p: Ent): boolean {
-  const dir = (p.x + p.w * 0.5) >= (e.x + e.w * 0.5) ? 1 : -1;
-  return e.face === dir;
-}
-
-function guarding(e: Ent, p: Ent): boolean {
-  if (e.open > 0 || e.hp <= 0) return false;
-  if (!facing(e, p)) return false;
-  if (e.kind === "shield") return true;
-  if (e.kind === "inspector" && e.ai === "guard") return true;
+function solidTile(w: World, tx: number, ty: number): boolean {
+  const ch = tileAt(w, tx, ty);
+  if (ch === "#" || ch === "c") return true;
+  if (ch === "v" && w.agent !== "kite") return true;
+  if (ch === "=") return lockAt(w, tx, ty)?.open !== true;
   return false;
 }
 
-function disarm(w: World, e: Ent, dir: number): void {
-  e.hp = 0;
-  e.st = "down";
-  e.ai = "down";
-  e.vx = dir * 240;
-  e.vy = -180;
-  w.disarmed += 1;
-  w.combo += 1;
-  w.comboT = 1.7;
-  if (w.combo > w.maxCombo) w.maxCombo = w.combo;
-  w.hitstop = Math.max(w.hitstop, 0.08);
-  w.shake = 9;
-  w.shakeT = 0.18;
-  w.slomo = Math.max(w.slomo, 0.08);
-  if (e.tag === "boss") {
-    w.bossDown = true;
-    w.banner = "DISARMED";
-    w.bannerT = 0.9;
-  }
-  burst(w, e.x + e.w * 0.5, e.y + 36, 14, "#ffe7b0", 320);
-}
-
-function connect(w: World, p: Ent, e: Ent, dmg: number, heavy: boolean): void {
-  if (e.hp <= 0 || e.ai === "wait" || e.lastHit === p.atkId) return;
-  const reach = Math.abs((p.x + p.w * 0.5) - (e.x + e.w * 0.5));
-  if ((e.kind === "rifle" || (e.kind === "inspector" && e.ai === "aim")) && reach > 92 && !heavy) return;
-  if (guarding(e, p) && !heavy && w.focus <= 0) {
-    e.lastHit = p.atkId;
-    w.hitstop = Math.max(w.hitstop, 0.04);
-    w.shake = 3;
-    w.shakeT = 0.08;
-    p.vx = -p.face * 140;
-    burst(w, e.x + e.w * 0.5, e.y + 28, 6, "#d9d3c4", 180);
-    w.banner = "CLANG";
-    w.bannerT = 0.28;
-    return;
-  }
-  e.lastHit = p.atkId;
-  let d = dmg;
-  let focus = false;
-  if (w.focus > 0) {
-    d += 2;
-    w.focus = 0;
-    focus = true;
-  }
-  if (heavy || focus) e.open = 0.9;
-  e.hp -= d;
-  const finisher = p.combo >= 3 || heavy || focus;
-  e.vx = p.face * (finisher ? 340 : 170);
-  e.vy = finisher ? -200 : -70;
-  e.st = "hit";
-  e.stT = 0;
-  e.squash = 1;
-  if (e.hp > 0 && (e.kind === "shield" || e.kind === "inspector") && !heavy && !focus) {
-    e.ai = e.kind === "inspector" ? "guard" : e.ai;
-  } else if (e.hp > 0) {
-    e.ai = "stun";
-  }
-  if (e.hp > 0) {
-    w.combo += 1;
-    w.comboT = 1.7;
-    if (w.combo > w.maxCombo) w.maxCombo = w.combo;
-  }
-  w.hitstop = Math.max(w.hitstop, focus ? 0.1 : finisher ? 0.08 : 0.045);
-  w.shake = focus ? 11 : finisher ? 8 : 4;
-  w.shakeT = 0.16;
-  burst(w, e.x + e.w * 0.5, e.y + 32, finisher ? 12 : 7, focus ? "#fff1c4" : "#ffe0a4", finisher ? 340 : 240);
-  if (e.hp <= 0) disarm(w, e, p.face);
-}
-
-function attackBox(p: Ent, heavy: boolean): AABB {
-  const w = heavy ? 70 : 58;
-  return {
-    x: p.face > 0 ? p.x + p.w - 6 : p.x - w + 6,
-    y: p.y + (heavy ? 8 : 16),
-    w,
-    h: heavy ? 64 : 50,
-  };
-}
-
-function swing(w: World, p: Ent, heavy: boolean): void {
-  const box = attackBox(p, heavy);
-  const dmg = heavy ? 2 : p.combo >= 3 ? 2 : 1;
-  for (let i = 0; i < w.foes.length; i++) {
-    const e = w.foes[i];
-    if (!e || !aabb(box, e)) continue;
-    connect(w, p, e, dmg, heavy);
-  }
-}
-
-function separate(p: Ent, foes: Ent[]): void {
-  for (let i = 0; i < foes.length; i++) {
-    const e = foes[i];
-    if (!e || e.hp <= 0 || e.ai === "wait") continue;
-    if (!aabb(p, e)) continue;
-    const overlapY = Math.min(p.y + p.h, e.y + e.h) - Math.max(p.y, e.y);
-    if (overlapY < 36) continue;
-    if (p.x + p.w * 0.5 < e.x + e.w * 0.5) p.x = e.x - p.w - 0.5;
-    else p.x = e.x + e.w + 0.5;
-  }
-}
-
-function updatePlayer(w: World, p: Ent, inp: Inp, dt: number): void {
-  if (inp.atkP) { p.buf = 1; p.bufT = 0.16; }
-  if (inp.dodgeP) { p.buf = 2; p.bufT = 0.16; }
-  if (w.hitstop <= 0 && p.bufT > 0) p.bufT -= dt;
-  if (p.bufT <= 0) p.buf = 0;
-  const press = p.buf === 1 && w.hitstop <= 0;
-  const dodgePress = p.buf === 2 && w.hitstop <= 0;
-  if (inp.jumpP) p.jbuf = 0.14;
-  if (p.onG) p.coy = 0.12;
-  else p.coy -= dt;
-  p.jbuf -= dt;
-  p.dcd -= dt;
-  p.cool -= dt;
-  p.inv -= dt;
-  p.open -= dt;
-  p.squash = Math.max(0, p.squash - dt * 6);
-  if (w.hitstop <= 0) p.stT += dt;
-  const speed = 440 * weary(w);
-  if (inp.atk) p.hold += dt;
-  else if (p.hold > 0) {
-    if (p.hold >= 0.14 && w.heavyOn) p.queue = 1;
-    p.hold = 0;
-  }
-
-  if (p.st === "down") return;
-  if (p.st === "hit") {
-    p.vx *= Math.max(0, 1 - 3 * dt);
-    if (p.stT > 0.28) p.st = p.onG ? "idle" : "jump";
-  }
-  const busy = p.st === "hit" || p.st === "down";
-  if (!busy && dodgePress && p.cool <= 0 && p.st !== "dodge") {
-    p.st = "dodge";
-    p.stT = 0;
-    p.inv = 0.18;
-    p.cool = 0.36;
-    p.vx = p.face * 520;
-    p.vy *= 0.35;
-    p.buf = 0;
-    p.queue = 0;
-    if (w.lesson === 3) w.lesson = 4;
-    burst(w, p.x, p.y + p.h, 5, "#cbbfa6", 120);
-  }
-  if (!busy && w.dashOn && inp.dashP && p.dcd <= 0 && p.st !== "dodge") {
-    const slide = inp.d && p.onG;
-    p.st = slide ? "slide" : "dash";
-    p.stT = 0;
-    p.dcd = 0.48;
-    p.vx = p.face * (slide ? 620 : 760);
-    p.vy = 0;
-    burst(w, p.x + p.w * 0.5, p.y + p.h, 7, "#d8c4a0", 160);
-  }
-  if (!busy && press && p.st === "dash") {
-    p.st = "attack";
-    p.combo = 1;
-    p.stT = 0;
-    p.atkId += 1;
-    p.did = false;
-    p.buf = 0;
-    p.vx = p.face * 280;
-  } else if (!busy && press && p.st === "attack" && p.combo < 3 && p.stT > 0.05 && p.stT < 0.34) {
-    p.combo += 1;
-    p.stT = 0;
-    p.atkId += 1;
-    p.did = false;
-    p.buf = 0;
-    p.vx += p.face * 80;
-  } else if (!busy && press && (p.st === "idle" || p.st === "run" || p.st === "jump" || p.st === "slide")) {
-    p.st = "attack";
-    p.combo = 1;
-    p.stT = 0;
-    p.atkId += 1;
-    p.did = false;
-    p.buf = 0;
-    p.vx += p.face * 80;
-    if (w.lesson < 3) w.lesson = 3;
-  }
-  if (p.queue === 1 && w.heavyOn && p.st !== "heavy" && p.st !== "dodge" && p.st !== "hit" && (p.st !== "attack" || (p.did && p.stT > 0.06))) {
-    p.st = "heavy";
-    p.stT = 0;
-    p.atkId += 1;
-    p.did = false;
-    p.queue = 0;
-    p.vx += p.face * 70;
-    if (w.lesson === 4) w.lesson = 5;
-  }
-
-  if (p.jbuf > 0 && p.st !== "dodge" && p.st !== "down" && p.st !== "heavy" && (p.coy > 0 || p.onW !== 0)) {
-    p.jbuf = 0;
-    p.coy = 0;
-    if (p.onW !== 0 && !p.onG) {
-      p.face = -p.onW;
-      p.vx = -p.onW * 380;
-      p.vy = -700;
-    } else p.vy = -760 * Math.sqrt(weary(w));
-    p.onG = false;
-    if (p.st !== "attack" && p.st !== "heavy") p.st = "jump";
-    if (w.lesson < 2) w.lesson = 2;
-  }
-  if (p.st !== "dash") {
-    const rising = p.vy < 0;
-    p.vy += (rising ? 1900 : 4600) * dt;
-    if (!inp.jump && p.vy < -160) p.vy = -160;
-    if (p.vy > 1680) p.vy = 1680;
-  }
-
-  if (p.st !== "dash" && p.st !== "slide" && p.st !== "dodge" && p.st !== "hit") {
-    const wish = (inp.r ? 1 : 0) - (inp.l ? 1 : 0);
-    const attacking = p.st === "attack" || p.st === "heavy";
-    if (wish !== 0) {
-      if (!attacking) p.face = wish;
-      const accel = (p.onG ? 11000 : 6400) * (attacking ? 0.45 : 1);
-      p.vx += wish * accel * dt;
-      p.vx = clamp(p.vx, -speed, speed);
-    } else if (!attacking) {
-      const fr = p.onG ? 9000 : 2200;
-      if (p.vx > 0) p.vx = Math.max(0, p.vx - fr * dt);
-      else p.vx = Math.min(0, p.vx + fr * dt);
+function blocked(w: World, x: number, y: number): boolean {
+  const r = 9;
+  const x0 = Math.floor((x - r) / TS);
+  const x1 = Math.floor((x + r) / TS);
+  const y0 = Math.floor((y - r) / TS);
+  const y1 = Math.floor((y + r) / TS);
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      if (!solidTile(w, tx, ty)) continue;
+      const left = tx * TS;
+      const top = ty * TS;
+      const cx = clamp(x, left, left + TS);
+      const cy = clamp(y, top, top + TS);
+      const dx = cx - x;
+      const dy = cy - y;
+      if (dx * dx + dy * dy < r * r) return true;
     }
   }
-  if (p.st === "dash" && p.stT > 0.16) p.st = p.onG ? "idle" : "jump";
-  if (p.st === "slide" && p.stT > 0.34) p.st = "idle";
-  if (p.st === "dodge" && p.stT > 0.32) p.st = p.onG ? "idle" : "jump";
-  if (p.st === "attack") {
-    const dur = p.combo >= 3 ? 0.34 : 0.2;
-    if (!p.did && p.stT > 0.01 && p.stT < 0.12) {
-      p.did = true;
-      swing(w, p, false);
-    }
-    if (p.stT > dur && p.st === "attack") p.st = p.onG ? "idle" : "jump";
-  }
-  if (p.st === "heavy") {
-    p.vx *= Math.max(0, 1 - 2 * dt);
-    if (!p.did && p.stT > 0.14 && p.stT < 0.28) {
-      p.did = true;
-      swing(w, p, true);
-      p.squash = 1;
-    }
-    if (p.stT > 0.42) p.st = p.onG ? "idle" : "jump";
-  }
-  if ((p.st === "idle" || p.st === "run") && !p.onG) p.st = "jump";
-  if (p.st === "jump" && p.onG) {
-    p.st = "idle";
-    p.squash = 1;
-  }
-  if (p.st === "idle" && Math.abs(p.vx) > 30 && p.onG) p.st = "run";
-  if (p.st === "run" && Math.abs(p.vx) <= 30 && p.onG) p.st = "idle";
-
-  if (p.st === "dodge" || p.st === "dash") {
-    w.ghosts.push({ x: p.x + p.w * 0.5, y: p.y + p.h, face: p.face, life: 0.18, frame: p.st === "dash" ? "player_dash" : "player_dodge" });
-    if (w.ghosts.length > 5) w.ghosts.shift();
-  }
-
-  const crouch = p.st === "slide" || p.st === "dodge" || (inp.d && p.onG && p.st !== "attack" && p.st !== "heavy" && p.st !== "hit");
-  const wasG = p.onG;
-  integrate(p, w.plats, dt, crouch, w.bossDown || w.wave >= 2);
-  if (!wasG && p.onG) p.squash = 1;
-  separate(p, w.foes);
-  if (p.x < w.camMin + 4) p.x = w.camMin + 4;
-  if (p.x > w.width - 40) p.x = w.width - 40;
-  if (w.lesson === 0 && Math.abs(p.x - 70) > 28) w.lesson = 1;
+  return false;
 }
 
-function sight(w: World, e: Ent, p: Ent): boolean {
-  if (e.hp <= 0) return false;
-  const dx = (p.x + p.w * 0.5) - (e.x + e.w * 0.5);
-  if (e.face > 0 && dx < 8) return false;
-  if (e.face < 0 && dx > -8) return false;
-  const range = p.h < 60 ? 108 : e.kind === "rifle" ? 260 : 196;
-  if (Math.abs(dx) > range) return false;
-  if (Math.abs((p.y + p.h) - (e.y + e.h)) > 80) return false;
-  if (w.level === 2 && p.x < 2100 && w.ally && w.ally.hp > 0) {
-    const close = Math.abs(p.x - w.ally.x) < 88 && Math.abs(p.y - w.ally.y) < 48;
-    const calm = p.st !== "attack" && p.st !== "heavy" && p.st !== "dash";
-    if (close && calm) return false;
+function clearLine(w: World, x0: number, y0: number, x1: number, y1: number): boolean {
+  const dist = Math.hypot(x1 - x0, y1 - y0);
+  const steps = Math.max(1, Math.ceil(dist / 6));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const x = x0 + (x1 - x0) * t;
+    const y = y0 + (y1 - y0) * t;
+    const tx = Math.floor(x / TS);
+    const ty = Math.floor(y / TS);
+    const ch = tileAt(w, tx, ty);
+    if (ch === "#" || ch === "c") return false;
+    if (ch === "=" && lockAt(w, tx, ty)?.open !== true) return false;
   }
   return true;
 }
 
-function startTel(e: Ent, time: number): void {
-  e.ai = "telegraph";
-  e.tel = time;
-  e.telMax = time;
-  e.stT = 0;
-  e.did = false;
-  e.vx = 0;
-  e.st = "attack";
+function inLamp(w: World, x: number, y: number): boolean {
+  for (const lamp of w.lamps) {
+    if (!lamp.on) continue;
+    if (Math.hypot(lamp.x - x, lamp.y - y) <= lamp.r) return true;
+  }
+  return false;
 }
 
-function bolt(w: World, e: Ent): void {
-  if (w.bolts.length > 8) w.bolts.shift();
-  w.bolts.push({ x: e.x + e.w * 0.5 + e.face * 20, y: e.y + 28, vx: e.face * 460, life: 1.2 });
+function noiseAt(w: World, x: number, y: number, r: number): void {
+  w.noises.push({ x, y, r, life: 0.45 });
+  if (w.noises.length > 8) w.noises.shift();
 }
 
-function updateFoe(w: World, e: Ent, p: Ent, dt: number): void {
-  e.stT += dt;
-  e.inv -= dt;
-  e.open -= dt;
-  e.cool -= dt;
-  if (e.ai === "wait") return;
-  if (e.hp <= 0 || e.ai === "down") {
-    e.st = "down";
-    e.vx *= Math.max(0, 1 - 4 * dt);
-    e.vy += 2500 * dt;
-    integrate(e, w.plats, dt, false, w.bossDown || w.wave >= 2);
-    return;
-  }
-  if (e.ai === "stun" || e.st === "hit") {
-    e.vy += 2500 * dt;
-    e.vx *= Math.max(0, 1 - 3 * dt);
-    integrate(e, w.plats, dt, false, w.bossDown || w.wave >= 2);
-    if (e.stT > (e.kind === "inspector" ? 0.22 : 0.32)) {
-      e.ai = e.kind === "shield" ? "march" : "chase";
-      e.st = "idle";
-    }
-    return;
-  }
-  const dx = (p.x + p.w * 0.5) - (e.x + e.w * 0.5);
-  const dist = Math.abs(dx);
-  const nearY = Math.abs(p.y - e.y) < 90;
-  const slow = w.aid > 0 ? 0.62 : 1;
-  const seen = sight(w, e, p);
-
-  if (e.tag === "drill" && w.lesson < 2) {
-    e.vx = 0;
-    e.face = dx >= 0 ? 1 : -1;
-    e.st = "idle";
-    e.vy += 2500 * dt;
-    integrate(e, w.plats, dt, false, false);
-    return;
-  }
-
-  if ((e.tag === "watch" || e.ai === "watch") && e.ai !== "chase" && e.ai !== "telegraph" && e.ai !== "strike" && e.ai !== "aim" && e.ai !== "recover" && e.ai !== "guard") {
-    e.vx = 0;
-    e.st = "idle";
-    if (seen) {
-      w.alarm = clamp(w.alarm + (e.kind === "rifle" ? 18 : 12), 0, 100);
-      e.ai = e.kind === "rifle" ? "aim" : "chase";
-      if (e.ai === "aim") { e.tel = 0.48; e.telMax = 0.48; }
-    }
-  } else if (e.ai === "drill" || e.ai === "patrol") {
-    if (e.x < e.pMin) e.face = 1;
-    if (e.x > e.pMax) e.face = -1;
-    e.vx = e.face * 70;
-    e.st = "run";
-    if (dist < 280 && nearY) e.ai = "chase";
-  } else if (e.ai === "march") {
-    e.face = -1;
-    e.vx = -78 * slow;
-    e.st = "run";
-    if (e.x < e.pMin) e.x = e.pMin;
-    if (dist < 78 && nearY && dx < 0) startTel(e, 0.4);
-  } else if (e.ai === "chase") {
-    e.face = dx >= 0 ? 1 : -1;
-    const spd = (e.kind === "constable" ? 175 : e.kind === "inspector" ? 150 : 125) * slow;
-    e.vx = e.face * spd;
-    e.st = "run";
-    const reach = e.kind === "rifle" ? 70 : e.kind === "officer" ? 64 : 54;
-    if (dist < reach && nearY && e.cool <= 0) {
-      const wind = e.tag === "drill" ? 0.62 : e.kind === "constable" ? 0.3 : e.kind === "inspector" ? 0.36 : 0.46;
-      startTel(e, wind);
-    }
-    if (e.kind === "rifle" && dist > 150 && dist < 340 && nearY && e.cool <= 0) {
-      e.ai = "aim";
-      e.tel = 0.5;
-      e.telMax = 0.5;
-      e.vx = 0;
-    }
-    if (e.kind === "inspector" && e.cool <= 0 && dist > 160 && nearY) {
-      e.ai = "aim";
-      e.tel = 0.42;
-      e.telMax = 0.42;
-      e.vx = 0;
-    }
-  } else if (e.ai === "aim") {
-    e.face = dx >= 0 ? 1 : -1;
-    e.vx = 0;
-    e.st = "attack";
-    e.tel -= dt;
-    if (dist < 88 && nearY) startTel(e, 0.28);
-    else if (e.tel <= 0) {
-      bolt(w, e);
-      e.ai = "recover";
-      e.stT = 0;
-      e.cool = e.kind === "inspector" ? 1.15 : 1.35;
-    }
-  } else if (e.ai === "recover") {
-    e.vx = 0;
-    e.st = "idle";
-    if (e.stT > 0.35) e.ai = "chase";
-  } else if (e.ai === "guard") {
-    e.face = dx >= 0 ? 1 : -1;
-    e.vx = 0;
-    e.st = "idle";
-    if (e.stT > 1.05) {
-      e.ai = "chase";
-      e.open = 0.35;
-    }
-  } else if (e.ai === "telegraph") {
-    e.vx = e.face * (e.kind === "officer" ? 40 : 10);
-    e.st = "attack";
-    e.tel -= dt;
-    if (e.tel <= 0) {
-      e.ai = "strike";
-      e.stT = 0;
-      e.did = false;
-    }
-  } else if (e.ai === "strike") {
-    e.st = "attack";
-    e.vx = e.face * (e.kind === "constable" ? 90 : 50);
-    if (!e.did && e.stT > 0.06 && e.stT < 0.2) {
-      const box: AABB = {
-        x: e.face > 0 ? e.x + e.w - 4 : e.x - (e.kind === "officer" || e.kind === "inspector" ? 62 : 48),
-        y: e.y + 8,
-        w: e.kind === "officer" || e.kind === "inspector" ? 66 : 52,
-        h: 60,
-      };
-      if (aabb(box, p)) {
-        e.did = true;
-        hurt(w, p, 1, e.face, true);
-      }
-      if (w.ally && w.ally.hp > 0 && aabb(box, w.ally)) hurt(w, w.ally, 1, e.face, false);
-    }
-    if (e.stT > 0.42) {
-      e.ai = e.kind === "shield" ? "march" : "chase";
-      e.cool = 0.35;
-      if (e.kind === "inspector" && e.hp <= 3) {
-        e.ai = "guard";
-        e.stT = 0;
-      }
-    }
-  }
-
-  e.vy += 2500 * dt;
-  if (e.vy > 1400) e.vy = 1400;
-  if (e.ai !== "stun" && e.ai !== "down") integrate(e, w.plats, dt, false, w.bossDown || w.wave >= 2);
+function makeGuard(s: GuardSpawn): Guard {
+  const x = (s.x + 0.5) * TS;
+  const y = (s.y + 0.5) * TS;
+  const x2 = (s.x2 + 0.5) * TS;
+  const y2 = (s.y2 + 0.5) * TS;
+  return {
+    x, y, face: Math.atan2(y2 - y, x2 - x), kind: s.kind, ai: "patrol", tag: s.tag,
+    range: s.range ?? 118, fov: 0.72,
+    wx: [x, x2], wy: [y, y2], wi: 1,
+    tx: x, ty: y, tel: 0, see: false, stashed: false, whistle: false,
+    homeX: x, homeY: y,
+  };
 }
 
-function updateAlly(w: World, a: Ent, p: Ent, dt: number): void {
-  a.cool -= dt;
-  a.inv -= dt;
-  if (a.hp <= 0) {
-    a.st = "down";
-    integrate(a, w.plats, dt, false, w.bossDown);
-    return;
-  }
-  for (let i = 0; i < w.foes.length; i++) {
-    const e = w.foes[i];
-    if (!e || e.hp <= 0 || a.cool > 0) continue;
-    if (Math.abs(e.x - a.x) < 58 && Math.abs(e.y - a.y) < 46 && (e.ai === "chase" || e.ai === "strike")) {
-      e.hp -= 1;
-      e.ai = "stun";
-      e.st = "hit";
-      e.stT = 0;
-      e.vx = a.face * 160;
-      a.cool = 2.5;
-      burst(w, e.x, e.y + 20, 6, "#e4c4ea", 160);
-      if (e.hp <= 0) disarm(w, e, a.face);
-    }
-  }
-  const target = p.x - p.face * 58;
-  const dx = target - a.x;
-  if (Math.abs(dx) > 18) {
-    a.face = dx > 0 ? 1 : -1;
-    a.vx = a.face * (Math.abs(dx) > 150 ? 250 : 180);
-    a.st = "run";
-  } else {
-    a.vx *= 0.7;
-    a.st = "idle";
-  }
-  const foot = a.y + a.h;
-  const probe = a.x + (a.face > 0 ? a.w + 36 : -36);
-  const ahead = supportTop(w.plats, probe, foot);
-  const here = supportTop(w.plats, a.x + a.w * 0.5, foot);
-  if (a.onG && (ahead === null || (here !== null && ahead < here - 16) || p.y + 36 < a.y)) a.vy = -840;
-  a.vy += 2500 * dt;
-  integrate(a, w.plats, dt, false, w.bossDown);
-  if (a.y > VH + 160) {
-    a.x = p.x - 48;
-    a.y = p.y;
-    a.vy = 0;
-  }
+function copyGuard(g: Guard): Guard {
+  return { ...g, wx: g.wx.slice(), wy: g.wy.slice() };
 }
 
-function ride(e: Ent, plats: Plat[], dt: number): void {
-  if (!e.onG) return;
-  const foot = e.y + e.h;
-  for (let i = 0; i < plats.length; i++) {
-    const pl = plats[i];
-    if (!pl || pl.t !== 3 || pl.vx === 0) continue;
-    if (e.x + e.w > pl.x + 2 && e.x < pl.x + pl.w - 2 && Math.abs(foot - pl.y) <= 8) e.x += pl.vx * dt;
-  }
+function center(t: XY): { x: number; y: number } {
+  return { x: (t.x + 0.5) * TS, y: (t.y + 0.5) * TS };
 }
 
-function updateBolts(w: World, dt: number): void {
+function canSee(w: World, g: Guard, px: number, py: number): boolean {
+  if (g.ai === "down" || g.stashed) return false;
   const p = w.player;
-  for (let i = w.bolts.length - 1; i >= 0; i--) {
-    const b = w.bolts[i];
-    if (!b) continue;
-    b.x += b.vx * dt;
-    b.life -= dt;
-    const box: AABB = { x: b.x - 6, y: b.y - 4, w: 14, h: 8 };
-    if (aabb(box, p)) {
-      hurt(w, p, 1, b.vx > 0 ? 1 : -1, true);
-      b.life = 0;
-    }
-    if (b.life <= 0 || b.x < w.camMin - 40 || b.x > w.width + 40) w.bolts.splice(i, 1);
+  if (p.hidden) return g.ai === "alert" && Math.hypot(g.x - px, g.y - py) < 18;
+  const dx = px - g.x;
+  const dy = py - g.y;
+  const dist = Math.hypot(dx, dy);
+  let range = g.range;
+  const ch = tileAt(w, Math.floor(px / TS), Math.floor(py / TS));
+  if (ch === "," || ch === "g" || ch === "v" || ch === "h" || ch === "n") range *= 0.62;
+  if (inLamp(w, px, py)) range *= 1.28;
+  if (p.crouch) range *= 0.72;
+  if ((ch === "g" || ch === "n") && p.crouch && dist > 36) return false;
+  if (p.disguise && !w.sprinting && g.ai !== "alert") {
+    const limit = g.kind === "officer" ? (w.agent === "veil" ? 24 : 38) : 20;
+    if (dist > limit) return false;
   }
+  if (dist > range || dist < 0.001) return false;
+  let diff = Math.atan2(dy, dx) - g.face;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  if (Math.abs(diff) > g.fov) return false;
+  return clearLine(w, g.x, g.y, px, py);
 }
 
-function wake(e: Ent): void {
-  e.hp = e.maxHp;
-  e.ai = "chase";
-  e.st = "idle";
-  e.stT = 0;
-  e.vy = 0;
+function seesBody(w: World, g: Guard, b: Guard): boolean {
+  if (b.stashed || b.ai !== "down") return false;
+  const dx = b.x - g.x;
+  const dy = b.y - g.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > g.range) return false;
+  let diff = Math.atan2(dy, dx) - g.face;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  if (Math.abs(diff) > g.fov) return false;
+  return clearLine(w, g.x, g.y, b.x, b.y);
 }
 
-function updatePlay(w: World, inp: Inp, dt: number): void {
-  const real = dt;
-  if (w.hitstop > 0) {
-    w.hitstop -= real;
-    dt = 0;
-  } else if (w.slomo > 0) {
-    w.slomo -= real;
-  }
-  w.time += real;
-  w.t += real;
-  w.bannerT -= real;
-  w.comboT -= real;
-  w.focus -= real;
-  w.aid -= real;
-  w.burn -= real;
-  w.leafCd -= real;
-  if (w.comboT <= 0) w.combo = 0;
-  if (w.focus < 0) w.focus = 0;
-
-  for (let i = 0; i < w.plats.length; i++) {
-    const pl = w.plats[i];
-    if (!pl || (pl.t !== 3 && pl.t !== 5)) continue;
-    pl.x += pl.vx * real;
-    if (pl.lim && pl.x > pl.lim) pl.vx = 0;
-  }
-  const pStand = w.player;
-  for (let i = 0; i < w.plats.length; i++) {
-    const pl = w.plats[i];
-    if (!pl || (pl.t !== 6 && pl.t !== 8)) continue;
-    const feet = pStand.y + pStand.h;
-    const on = pStand.onG && feet > pl.y - 8 && feet < pl.y + 14 && pStand.x + pStand.w > pl.x + 8 && pStand.x < pl.x + pl.w - 8;
-    const hot = pl.t === 8 && w.fireX > pl.x - 30;
-    if ((on || hot) && pl.vx >= 0) pl.vx = -0.02;
-    if (pl.vx < 0) {
-      pl.vx -= real;
-      if (pl.vx < -0.32) {
-        const before = pl.y;
-        pl.y += 240 * real;
-        if (on) pStand.y += pl.y - before;
-      }
-    }
-  }
-
-  const foeDt = w.hitstop > 0 ? 0 : w.slomo > 0 ? real * 0.4 : real;
-  const pDt = w.hitstop > 0 ? 0 : w.slomo > 0 ? real * 0.75 : real;
-  if (pDt > 0 || inp.atkP || inp.dodgeP || inp.jumpP) updatePlayer(w, w.player, inp, pDt || 0);
-  if (foeDt > 0) {
-    for (let i = 0; i < w.foes.length; i++) {
-      const e = w.foes[i];
-      if (e) updateFoe(w, e, w.player, foeDt);
-    }
-    if (w.ally) updateAlly(w, w.ally, w.player, foeDt);
-    updateBolts(w, foeDt);
-  }
-  ride(w.player, w.plats, real);
-  for (let i = 0; i < w.foes.length; i++) {
-    const e = w.foes[i];
-    if (e) ride(e, w.plats, real);
-  }
-  if (w.ally) ride(w.ally, w.plats, real);
-  for (let i = w.ghosts.length - 1; i >= 0; i--) {
-    const g = w.ghosts[i];
-    if (!g) continue;
-    g.life -= real;
-    if (g.life <= 0) w.ghosts.splice(i, 1);
-  }
-
+function nearestLock(w: World, reach: number): Lock | undefined {
+  let best: Lock | undefined;
+  let bestD = reach;
   const p = w.player;
-  if (w.level === 4 && w.alarm >= 100 && (w.flags & 1) === 0) {
-    w.flags |= 1;
-    w.foes.push(foe(p.x - 280, p.y - 40, "officer", 1, ""));
-    w.banner = "THE HOUSE IS UP";
-    w.bannerT = 1;
+  for (const lock of w.locks) {
+    if (lock.open) continue;
+    const c = center(lock);
+    const d = Math.hypot(c.x - p.x, c.y - p.y);
+    if (d < bestD) { best = lock; bestD = d; }
   }
-  if (w.lesson === 3 && p.x > 1100) w.lesson = 4;
-  if (w.lesson === 4 && p.x > 1860) w.lesson = 5;
-  w.heavyOn = w.level > 1 || w.lesson >= 4;
-  w.hint = w.level === 1 ? (HINTS[w.lesson] ?? "") : w.level === 2 && p.x < 2100 ? "Stay at her shoulder. Hold Down to shorten a cone. Flick the stick to dash." : "";
+  return best;
+}
 
-  for (let i = 0; i < w.papers.length; i++) {
-    const pap = w.papers[i];
-    if (!pap || pap.got) continue;
-    if (Math.abs(p.x - pap.x) < 36 && Math.abs(p.y + p.h - pap.y) < 80) {
-      pap.got = true;
-      burst(w, pap.x, pap.y, 8, "#f2e2a0", 160);
-    }
-  }
-  for (let i = 0; i < w.gems.length; i++) {
-    const gem = w.gems[i];
-    if (!gem || gem.got) continue;
-    if (Math.abs(p.x - gem.x) < 34 && Math.abs(p.y + p.h - gem.y) < 70) {
-      gem.got = true;
-      w.banner = "A HIDDEN COPY";
+function behind(g: Guard, px: number, py: number): boolean {
+  const dx = px - g.x;
+  const dy = py - g.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > 26 || dist < 0.001) return false;
+  const dot = Math.cos(g.face) * dx + Math.sin(g.face) * dy;
+  return dot < -8;
+}
+
+function visionPoint(w: World): { x: number; y: number } {
+  if (!w.peek) return { x: w.player.x, y: w.player.y };
+  return {
+    x: w.player.x + Math.cos(w.player.face) * 12,
+    y: w.player.y + Math.sin(w.player.face) * 12,
+  };
+}
+
+function useAbility(w: World): void {
+  const p = w.player;
+  const agent = w.agent;
+  if (agent === "kite") {
+    noiseAt(w, p.x + Math.cos(p.face) * 86, p.y + Math.sin(p.face) * 86, 150);
+    w.banner = "A stone off the roof";
+    w.bannerT = 0.7;
+  } else if (agent === "veil") {
+    if (w.uniformHeld) {
+      p.disguise = true;
+      w.banner = "The coat fits";
       w.bannerT = 0.7;
-      burst(w, gem.x, gem.y, 8, "#f2e2a0", 140);
     }
-  }
-  for (let i = 0; i < w.checks.length; i++) {
-    const c = w.checks[i];
-    if (!c || c.used) continue;
-    if (Math.abs(p.x - c.x) < 40 && Math.abs(p.y + p.h - c.y) < 80) {
-      c.used = true;
-      w.chkX = c.x - 10;
-      w.chkY = c.y - p.h;
-      w.save = takeSave(w);
-      w.banner = "CHECKPOINT";
+  } else if (agent === "key") {
+    const lock = nearestLock(w, 78);
+    if (lock) {
+      lock.open = true;
+      w.banner = "The lock gives";
+      w.bannerT = 0.6;
+    } else if (w.lamps.some((lamp) => lamp.on)) {
+      for (const lamp of w.lamps) lamp.on = false;
+      w.banner = "The lamps die";
       w.bannerT = 0.8;
     }
   }
-  for (let i = 0; i < w.hazards.length; i++) {
-    const h = w.hazards[i];
-    if (!h) continue;
-    if (p.h > 60 && aabb(p, h)) hurt(w, p, 1, -p.face || -1, false);
+  if (w.level === 1 && w.lesson < 4) w.lesson = 4;
+}
+
+function labelFor(w: World): string {
+  const p = w.player;
+  if (p.hidden) return "Leave";
+  if (p.drag >= 0) return "Drop";
+  for (const g of w.guards) {
+    if (g.ai !== "down" && behind(g, p.x, p.y)) return "Subdue";
   }
-  if (w.level === 3) {
-    w.fireX += real * 52;
-    if (p.x + p.w < w.fireX && w.burn <= 0) {
-      hurt(w, p, 1, 1, false);
-      w.burn = 0.75;
+  for (const g of w.guards) {
+    if (g.ai === "down" && !g.stashed && Math.hypot(g.x - p.x, g.y - p.y) < 24) return "Drag";
+  }
+  const tx = Math.floor(p.x / TS);
+  const ty = Math.floor(p.y / TS);
+  if (tileAt(w, tx, ty) === "h" || tileAt(w, tx, ty) === "n") return "Hide";
+  if (nearestLock(w, 40)) return "Lockpick";
+  if (w.uniformHeld && !p.disguise) return "Disguise";
+  if (w.hugging) return "Knock";
+  return "Action";
+}
+
+function dropBody(w: World): void {
+  const p = w.player;
+  const g = w.guards[p.drag];
+  p.drag = -1;
+  if (!g) return;
+  const ch = tileAt(w, Math.floor(p.x / TS), Math.floor(p.y / TS));
+  if (ch === "h" || ch === "n") g.stashed = true;
+}
+
+function resolveAct(w: World, inp: Inp): void {
+  const p = w.player;
+  if (!inp.actP) return;
+  if (p.hidden) { p.hidden = false; return; }
+  if (p.drag >= 0) { dropBody(w); return; }
+  for (const g of w.guards) {
+    if (g.ai !== "down" && behind(g, p.x, p.y)) {
+      g.ai = "down";
+      g.see = false;
+      w.story.downs += 1;
+      w.banner = "Laid down";
+      w.bannerT = 0.45;
+      if (w.level === 1 && w.lesson < 3) w.lesson = 3;
+      return;
     }
-    const got = w.papers.filter((x) => x.got).length;
-    w.obj = "Bundles " + String(got) + "/3. The fire is behind you.";
-    if (got >= 3 && w.wave === 0) {
-      w.wave = 1;
-      w.aid = 8;
-      w.banner = "AZAD HAS THE DOOR";
-      w.bannerT = 1.2;
-      for (const e of w.foes) if (e.tag === "wave") wake(e);
+  }
+  for (let i = 0; i < w.guards.length; i++) {
+    const g = w.guards[i];
+    if (g && g.ai === "down" && !g.stashed && Math.hypot(g.x - p.x, g.y - p.y) < 24) {
+      p.drag = i;
+      return;
     }
-    if (w.wave === 1 && w.foes.every((e) => e.tag !== "wave" || e.hp <= 0)) w.wave = 2;
   }
-  if (w.level === 1) {
-    w.obj = w.bossDown ? "The officer is down. Take the far roof." : "Drop the cordon's officer. Outrun the lanes behind you.";
-    if (p.x > 4000 && p.x < 5600) w.camMin = Math.min(5300, w.camMin + 150 * real);
+  const ch = tileAt(w, Math.floor(p.x / TS), Math.floor(p.y / TS));
+  if (ch === "h" || ch === "n") { p.hidden = true; p.crouch = true; return; }
+  if (w.uniformHeld && !p.disguise) {
+    p.disguise = true;
+    w.banner = "The coat fits";
+    w.bannerT = 0.5;
+    return;
   }
-  if (w.level === 2) {
-    const withHer = w.ally && w.ally.hp > 0 && Math.abs(w.ally.x - p.x) < 300;
-    w.obj = w.bossDown ? "Off the train. Keep her with you." : withHer ? "The last carriage. Close on the rifleman." : "Do not lose Durga between the cars.";
+  if (w.hugging) {
+    noiseAt(w, p.x + Math.cos(p.face) * 48, p.y + Math.sin(p.face) * 48, 160);
+    w.banner = "A knock";
+    w.bannerT = 0.4;
   }
-  if (w.level === 4) {
-    if (p.x > 3480) w.gallery = true;
-    if (w.gallery && w.wave === 0) {
-      w.wave = 1;
-      for (const e of w.foes) if (e.tag === "wave") wake(e);
+}
+
+function toss(w: World, inp: Inp): void {
+  const p = w.player;
+  if (p.hidden) return;
+  let ax = inp.aimX;
+  let ay = inp.aimY;
+  if (ax * ax + ay * ay < 0.01) {
+    ax = Math.cos(p.face);
+    ay = Math.sin(p.face);
+  }
+  w.pebble = { x: p.x, y: p.y, vx: ax * 280, vy: ay * 280, life: 0.48 };
+  if (w.level === 1 && w.lesson < 4) w.lesson = 4;
+}
+
+function heard(w: World, g: Guard): void {
+  if (g.ai !== "patrol" && g.ai !== "return") return;
+  for (const n of w.noises) {
+    if (n.life < 0.28) continue;
+    if (Math.hypot(n.x - g.x, n.y - g.y) <= n.r) {
+      g.ai = "sus";
+      g.tx = n.x;
+      g.ty = n.y;
+      g.tel = 3.1;
+      return;
     }
-    if (w.gallery && w.leaflets < 8 && (inp.atkP || inp.actP) && w.leafCd <= 0) {
-      w.leaflets += 1;
-      w.leafCd = 0.32;
-      burst(w, p.x + p.face * 46, p.y + 24, 8, "#f4e6c0", 200);
-      if (w.leaflets === 4 || w.leaflets === 8) {
-        w.banner = "DUTT — TOGETHER";
-        w.bannerT = 0.7;
-        for (const e of w.foes) {
-          if (e.hp > 0 && Math.abs(e.x - p.x) < 280) {
-            e.ai = "stun";
-            e.st = "hit";
-            e.stT = 0;
+  }
+}
+
+function stepGuard(w: World, g: Guard, dt: number): boolean {
+  if (g.ai === "down") return false;
+  if (w.player.drag >= 0 && w.guards[w.player.drag] === g) {
+    g.x = w.player.x;
+    g.y = w.player.y + 10;
+    return false;
+  }
+  heard(w, g);
+  const speed = g.ai === "alert" ? 92 : g.ai === "sus" ? 64 : g.ai === "return" ? 52 : 44;
+  let tx = g.x;
+  let ty = g.y;
+  if (g.ai === "patrol") {
+    tx = g.wx[g.wi] ?? g.x;
+    ty = g.wy[g.wi] ?? g.y;
+    if (Math.hypot(tx - g.x, ty - g.y) < 6) g.wi = g.wi === 0 ? 1 : 0;
+  } else if (g.ai === "sus" || g.ai === "alert") {
+    tx = g.tx;
+    ty = g.ty;
+    g.tel -= dt;
+  } else if (g.ai === "search") {
+    g.face += dt * 1.3;
+    g.tel -= dt;
+    if (g.tel <= 0) g.ai = "return";
+  } else if (g.ai === "return") {
+    tx = g.homeX;
+    ty = g.homeY;
+    if (Math.hypot(tx - g.x, ty - g.y) < 8) g.ai = "patrol";
+  }
+  if (g.ai !== "search") {
+    const dx = tx - g.x;
+    const dy = ty - g.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 4) {
+      const step = Math.min(dist, speed * dt);
+      const mx = dx / dist * step;
+      const my = dy / dist * step;
+      if (!blocked(w, g.x + mx, g.y)) g.x += mx;
+      if (!blocked(w, g.x, g.y + my)) g.y += my;
+      g.face = Math.atan2(my, mx);
+    } else if (g.ai === "sus") {
+      g.ai = "search";
+      g.tel = 2.4;
+    }
+  }
+  if (g.ai === "sus" && g.tel <= 0) {
+    g.ai = "search";
+    g.tel = 2.2;
+  }
+  return false;
+}
+
+function caught(w: World): void {
+  w.hitsTaken += 1;
+  w.spotted = true;
+  w.mode = "dead";
+  w.deadT = 0.7;
+  w.banner = "CAUGHT";
+  w.bannerT = 0.7;
+  w.player.hidden = false;
+  w.player.drag = -1;
+}
+
+function reqsDone(w: World): boolean {
+  if (!w.asked.includes("|" + w.choiceId + "|")) return false;
+  for (const paper of w.papers) if (paper.req && !paper.got) return false;
+  return true;
+}
+
+function tryFinish(w: World): void {
+  if (w.prompt || !reqsDone(w)) return;
+  const c = center(w.exit);
+  if (Math.hypot(c.x - w.player.x, c.y - w.player.y) > 18) return;
+  finishLevel(w);
+}
+
+function pollWorld(w: World): void {
+  const p = w.player;
+  for (const paper of w.papers) {
+    if (paper.got) continue;
+    const c = center(paper);
+    if (Math.hypot(c.x - p.x, c.y - p.y) < 20) {
+      paper.got = true;
+      w.notes += 1;
+      w.banner = paper.req ? "Taken" : "A spare note";
+      w.bannerT = 0.6;
+    }
+  }
+  if (!w.chase && w.papers.some((paper) => paper.req) && w.papers.every((paper) => !paper.req || paper.got)) {
+    w.chase = true;
+    w.banner = "RUN";
+    w.bannerT = 1.15;
+    w.obj = "They are moving. Get to the exit.";
+    for (const g of w.guards) {
+      if (g.ai === "down") continue;
+      if (g.tag === "chase" || g.tag === "officer") {
+        g.ai = "alert";
+        g.tx = p.x;
+        g.ty = p.y;
+        g.tel = 6;
+      }
+    }
+  }
+  for (const u of w.uniforms) {
+    if (u.got) continue;
+    const c = center(u);
+    if (Math.hypot(c.x - p.x, c.y - p.y) < 18) {
+      u.got = true;
+      w.uniformHeld = true;
+      w.banner = "A uniform";
+      w.bannerT = 0.5;
+    }
+  }
+  if (!w.asked.includes("|" + w.choiceId + "|")) {
+    const c = center(w.choice);
+    if (Math.hypot(c.x - p.x, c.y - p.y) < 24) {
+      const prompt = PROMPTS[w.choiceId];
+      if (prompt) w.prompt = { id: prompt.id, q: prompt.q, options: prompt.options.map((o) => ({ ...o })) };
+    }
+  }
+  for (const check of w.checks) {
+    if (check.used) continue;
+    const c = center(check);
+    if (Math.hypot(c.x - p.x, c.y - p.y) < 22) {
+      check.used = true;
+      w.chkX = p.x;
+      w.chkY = p.y;
+      w.save = takeSave(w);
+      w.banner = "CHECKPOINT";
+      w.bannerT = 0.45;
+    }
+  }
+}
+
+function takeSave(w: World): Save {
+  return {
+    guards: w.guards.map(copyGuard),
+    papers: w.papers.map((p) => p.got),
+    locks: w.locks.map((l) => l.open),
+    lamps: w.lamps.map((l) => l.on),
+    downs: w.story.downs,
+    notes: w.notes,
+    disguise: w.player.disguise,
+    uniform: w.uniformHeld,
+    spotted: w.spotted,
+    chase: w.chase,
+    x: w.player.x,
+    y: w.player.y,
+  };
+}
+
+function applySave(w: World, s: Save): void {
+  w.guards = s.guards.map(copyGuard);
+  w.papers.forEach((p, i) => { p.got = s.papers[i] === true; });
+  w.locks.forEach((l, i) => { l.open = s.locks[i] === true; });
+  w.lamps.forEach((l, i) => { l.on = s.lamps[i] !== false; });
+  w.story.downs = s.downs;
+  w.notes = s.notes;
+  w.player.disguise = s.disguise;
+  w.uniformHeld = s.uniform;
+  w.spotted = s.spotted;
+  w.chase = s.chase;
+  w.chkX = s.x;
+  w.chkY = s.y;
+  w.pebble = null;
+  w.noises = [];
+  w.prompt = null;
+}
+
+function steer(w: World, g: Guard, dt: number): void {
+  if (g.ai !== "alert") return;
+  if (g.see) {
+    g.tx = w.player.x;
+    g.ty = w.player.y;
+    g.tel = 1.2;
+  }
+  const dist = Math.hypot(g.x - w.player.x, g.y - w.player.y);
+  if (dist < 20 && !w.player.hidden) caught(w);
+  void dt;
+}
+
+function updatePlay(w: World, inp: Inp, dt: number): void {
+  w.t += dt;
+  w.time += dt;
+  if (w.bannerT > 0) w.bannerT -= dt;
+  const p = w.player;
+  if (w.prompt) {
+    if (inp.pick > 0) applyPick(w, inp.pick - 1);
+    return;
+  }
+  if (inp.crouchP) {
+    p.crouch = !p.crouch;
+    if (p.crouch && w.level === 1 && w.lesson < 2) w.lesson = 2;
+  }
+  if (inp.abilityP) useAbility(w);
+  w.actLabel = labelFor(w);
+  resolveAct(w, inp);
+  if (inp.throwP) toss(w, inp);
+  const door = nearestLock(w, 40);
+  if (inp.act && door && !p.hidden && p.drag < 0 && w.actLabel === "Lockpick") {
+    p.channel += dt;
+    if (p.channel >= 0.85) {
+      door.open = true;
+      p.channel = 0;
+      w.banner = "The lock turns";
+      w.bannerT = 0.45;
+    }
+  } else if (!inp.act) p.channel = 0;
+
+  const moving = Math.hypot(inp.x, inp.y) > 0.2 && inp.mag > 0.12;
+  if (moving && p.hidden) p.hidden = false;
+  const quiet = p.crouch || (!inp.run && inp.mag < 0.82);
+  w.sprinting = moving && !quiet;
+  if (w.sprinting && p.disguise) {
+    p.disguise = false;
+    w.banner = "The disguise slips";
+    w.bannerT = 0.45;
+  }
+  const spd = (quiet ? 70 : 168) * (p.drag >= 0 ? 0.62 : 1);
+  let mx = 0;
+  let my = 0;
+  if (moving && !p.hidden) {
+    const len = Math.hypot(inp.x, inp.y) || 1;
+    mx = inp.x / len * spd * dt;
+    my = inp.y / len * spd * dt;
+    p.face = Math.atan2(inp.y, inp.x);
+    if (w.level === 1 && w.lesson < 1) w.lesson = 1;
+  }
+  const beforeX = p.x;
+  const beforeY = p.y;
+  if (!blocked(w, p.x + mx, p.y)) p.x += mx;
+  if (!blocked(w, p.x, p.y + my)) p.y += my;
+  const hitX = Math.abs(p.x - beforeX) < Math.abs(mx) * 0.4 && Math.abs(mx) > 0.2;
+  const hitY = Math.abs(p.y - beforeY) < Math.abs(my) * 0.4 && Math.abs(my) > 0.2;
+  w.hugging = hitX || hitY;
+  w.peek = (hitX && Math.abs(inp.x) > Math.abs(inp.y) + 0.2) || (hitY && Math.abs(inp.y) > Math.abs(inp.x) + 0.2);
+  if (w.sprinting) {
+    p.step -= dt;
+    if (p.step <= 0) {
+      noiseAt(w, p.x, p.y, 118);
+      p.step = 0.38;
+    }
+  }
+  if (w.pebble) {
+    const b = w.pebble;
+    const nx = b.x + b.vx * dt;
+    const ny = b.y + b.vy * dt;
+    b.life -= dt;
+    if (b.life <= 0 || blocked(w, nx, ny)) {
+      noiseAt(w, b.x, b.y, 150);
+      w.pebble = null;
+    } else {
+      b.x = nx;
+      b.y = ny;
+    }
+  }
+  for (const n of w.noises) n.life -= dt;
+  w.noises = w.noises.filter((n) => n.life > 0);
+  pollWorld(w);
+  if (w.prompt) return;
+  const look = visionPoint(w);
+  let anySee = false;
+  for (const g of w.guards) {
+    if (g.ai === "down") { g.see = false; continue; }
+    g.see = canSee(w, g, look.x, look.y);
+    if (g.see) {
+      anySee = true;
+      const was = g.ai;
+      g.ai = "alert";
+      g.tx = p.x;
+      g.ty = p.y;
+      if (was !== "alert" && !g.whistle) {
+        g.whistle = true;
+        for (const other of w.guards) {
+          if (other === g || other.ai === "down") continue;
+          if (Math.hypot(other.x - g.x, other.y - g.y) < 170 && (other.ai === "patrol" || other.ai === "return")) {
+            other.ai = "sus";
+            other.tx = p.x;
+            other.ty = p.y;
+            other.tel = 3;
           }
         }
       }
-    }
-    w.obj = w.leaflets >= 8 ? "Stand in the circle. Let them take you." : "Leaflets " + String(Math.min(8, w.leaflets)) + "/8. Alarm " + String(Math.floor(w.alarm));
-    const mark = w.markX || 2920;
-    if (w.leaflets >= 8 && Math.abs(p.x - mark) < 70 && Math.abs(p.vx) < 50 && p.st !== "attack" && p.st !== "heavy" && p.st !== "dash") {
-      w.stand += real;
-      if (w.stand > 1.45) {
-        w.talk = TALKS.l4end ?? [];
-        w.talkI = 0;
-        w.talkShown = 0;
-        w.endTalk = "l4end";
-        w.mode = "talk";
-        return;
+    } else if (!g.see && g.ai === "patrol") {
+      for (const body of w.guards) {
+        if (seesBody(w, g, body)) {
+          g.ai = "sus";
+          g.tx = body.x;
+          g.ty = body.y;
+          g.tel = 3;
+          break;
+        }
       }
-    } else w.stand = Math.max(0, w.stand - real);
-  }
-  if (w.fast) updateFast(w, inp, real);
-
-  if (w.mode !== "play") return;
-  if (p.y > VH + 180) {
-    hurt(w, p, 1, 0, false);
-    if (w.mode === "play") respawn(w);
-    return;
-  }
-  if (w.camMin > 40 && p.x < w.camMin + 8 && w.level === 1) hurt(w, p, 1, 1, false);
-
-  const past = p.x > w.exitX;
-  if (past && w.level === 1 && w.bossDown) finishLevel(w);
-  else if (past && w.level === 2 && w.bossDown && w.ally && w.ally.hp > 0 && Math.abs(w.ally.x - p.x) < 340) finishLevel(w);
-  else if (past && w.level === 3 && w.papers.every((x) => x.got) && w.wave >= 2) finishLevel(w);
-  else if (past && w.level === 1 && !w.bossDown) {
-    w.banner = "HE IS STILL STANDING";
-    w.bannerT = 0.4;
-  }
-
-  const want = p.x - VW * 0.42 + p.face * 70;
-  w.camX += (want - w.camX) * Math.min(1, 6 * real);
-  w.camX = clamp(w.camX, w.camMin, Math.max(0, w.width - VW));
-}
-
-function updateFast(w: World, inp: Inp, dt: number): void {
-  w.days += dt * 1.4;
-  w.obj = "Day " + String(Math.floor(w.days)) + (w.broke ? "" : "  —  refuse their bread");
-  const p = w.player;
-  const bit = (n: number) => (w.flags & n) !== 0;
-  const mark = (n: number) => { w.flags |= n; };
-  if (w.days > 8 && !bit(2)) { mark(2); w.foes.push(foe(40, 300, "constable", 1, "")); }
-  if (w.days > 26 && !bit(4)) { mark(4); w.foes.push(foe(40, 300, "officer", 1, "")); }
-  if (w.days > 46 && !bit(8)) { mark(8); w.foes.push(foe(80, 300, "shield", 1, "")); }
-  if (w.days >= 63 && !w.jatin) {
-    w.jatin = true;
-    w.talk = TALKS.jatin ?? [];
-    w.talkI = 0;
-    w.talkShown = 0;
-    w.endTalk = "fast";
-    w.mode = "talk";
-    return;
-  }
-  if (w.days > 74 && !bit(16)) { mark(16); w.bars = true; w.foes.push(foe(30, 300, "constable", 1, "")); }
-  if (w.bars && w.burn <= 0) {
-    w.burn = 2.1;
-    const src = mkEnt(20, 360, "rifle");
-    src.face = 1;
-    bolt(w, src);
-  }
-  if (w.days > 90 && !w.breadOn && !w.broke) {
-    w.breadOn = true;
-    w.banner = "BREAD. STRIKE IT TO EAT. WALK AWAY TO REFUSE.";
-    w.bannerT = 1.6;
-  }
-  if (w.breadOn && !w.broke && inp.atkP && Math.abs(p.x - w.breadX) < 36 && Math.abs(p.y + p.h - 430) < 70) {
-    w.broke = true;
-    w.banner = "THE FAST BREAKS";
-    w.bannerT = 1;
-    w.talk = TALKS.l5end ?? [];
-    w.talkI = 0;
-    w.talkShown = 0;
-    w.endTalk = "finale";
-    w.mode = "talk";
-    return;
-  }
-  if (w.days > 100 && !bit(32) && !w.broke) {
-    mark(32);
-    const jailer = foe(70, 300, "inspector", 1, "boss");
-    jailer.hp = 5;
-    jailer.maxHp = 5;
-    w.foes.push(jailer);
-    w.banner = "THE JAILER";
-    w.bannerT = 1;
-  }
-  if (w.days >= 40 && w.chkX < 200) {
-    w.chkX = 180;
-    w.chkY = 470 - p.h;
-    w.save = takeSave(w);
-  }
-  if (!w.broke && w.days >= 112 && w.bossDown) {
-    w.talk = TALKS.l5end ?? [];
-    w.talkI = 0;
-    w.talkShown = 0;
-    w.endTalk = "finale";
-    w.mode = "talk";
-  }
-}
-
-function settle(w: World): void {
-  const dt = 1 / 60;
-  const fall = (e: Ent) => {
-    for (let i = 0; i < 90 && !e.onG; i++) {
-      e.vy = Math.min(1400, e.vy + 2500 * dt);
-      integrate(e, w.plats, dt, false, false);
     }
-    e.vx = 0;
-    e.vy = 0;
+  }
+  if (anySee) {
+    w.spotted = true;
+    if (w.phaseT <= 0) w.phaseT = 4.2;
+    else w.phaseT -= dt;
+    if (w.phaseT <= 0) { caught(w); return; }
+  } else if (w.phaseT > 0) {
+    w.phaseT -= dt;
+    if (w.phaseT <= 0) {
+      for (const g of w.guards) {
+        if (g.ai === "alert") { g.ai = "search"; g.tel = 2.6; }
+      }
+    }
+  }
+  for (const g of w.guards) {
+    if (w.mode !== "play") return;
+    stepGuard(w, g, dt);
+    steer(w, g, dt);
+    if (w.mode !== "play") return;
+  }
+  let det = 0;
+  for (const g of w.guards) {
+    if (g.ai === "down") continue;
+    if (g.see) det = 1;
+    else if (g.ai === "alert" || g.ai === "search") det = Math.max(det, 0.72);
+    else if (g.ai === "sus") det = Math.max(det, 0.4);
+  }
+  w.detect = det;
+  w.lit = inLamp(w, p.x, p.y) && !p.hidden;
+  w.heat = Math.max(0, w.story.downs - w.downs0);
+  if (w.level === 1) w.hint = HINTS[Math.min(w.lesson, HINTS.length - 1)] ?? "";
+  const lookX = p.x + Math.cos(p.face) * 70 - VW / 2;
+  const lookY = p.y + Math.sin(p.face) * 48 - VH / 2;
+  w.camX += (lookX - w.camX) * 0.14;
+  w.camY += (lookY - w.camY) * 0.14;
+  w.camX = clamp(w.camX, 0, Math.max(0, w.width - VW));
+  w.camY = clamp(w.camY, 0, Math.max(0, w.height - VH));
+  tryFinish(w);
+}
+
+function applyPick(w: World, index: number): void {
+  const prompt = w.prompt;
+  if (!prompt) return;
+  const opt = prompt.options[index] ?? prompt.options[0];
+  if (!opt) { w.prompt = null; return; }
+  if (prompt.id === "courier") w.story.courier = opt.value;
+  else if (prompt.id === "train") w.story.train = opt.value;
+  else if (prompt.id === "papers") w.story.papers = opt.value;
+  else if (prompt.id === "assembly") w.story.assembly = opt.value;
+  else if (prompt.id === "warder") w.story.warder = opt.value;
+  else if (prompt.id === "signal") w.story.signal = opt.value;
+  w.asked += prompt.id + "|";
+  w.prompt = null;
+  w.banner = opt.label;
+  w.bannerT = 0.8;
+}
+
+function tune(w: World): void {
+  const s = w.story;
+  if (w.level === 2 && s.courier === "save") {
+    const i = w.guards.findIndex((g) => g.tag === "watch");
+    if (i >= 0) w.guards.splice(i, 1);
+    w.obj = "The courier is clear. The trench is quieter. Sabotage the train, or take it.";
+  } else if (w.level === 2 && s.courier === "plans") {
+    w.guards.push(makeGuard({ x: 12, y: 7, x2: 18, y2: 7, kind: "constable", tag: "watch" }));
+    w.obj = "The plans are ours, and the yard is awake. Be someone else.";
+  }
+  if (w.level === 3 && s.train === "sabotage") {
+    const i = w.guards.findIndex((g) => g.tag === "chase");
+    if (i >= 0) w.guards.splice(i, 1);
+    w.obj = "The arms never arrived. Cut the lamps if the hall looks at you.";
+  } else if (w.level === 3 && s.train === "hijack") {
+    w.obj = "The cells have the rifles. The workshop is searching. Move the press.";
+  }
+  if (w.level === 4 && s.papers === "both") {
+    w.guards.push(makeGuard({ x: 14, y: 11, x2: 20, y2: 11, kind: "soldier", tag: "chase", range: 96 }));
+    w.obj = "You carried both. The marble has an extra patrol.";
+  }
+  if (w.level === 6 && s.warder === "spare") {
+    const i = w.guards.findIndex((g) => g.tag === "officer");
+    if (i >= 0) w.guards.splice(i, 1);
+    w.obj = "The warder left his post. One less rifle. Light the signal when you are ready.";
+  } else if (w.level === 6 && s.warder === "lock") {
+    w.guards.push(makeGuard({ x: 12, y: 9, x2: 18, y2: 9, kind: "soldier", tag: "chase", range: 96 }));
+    w.obj = "The court heard the bolt. Stay on the roof and take the lamp room.";
+  }
+}
+
+function missionWorld(w: World, m: Mission): void {
+  w.cols = m.cols;
+  w.rows = m.rows;
+  w.tiles = m.tiles.map((row) => row);
+  w.width = m.cols * TS;
+  w.height = m.rows * TS;
+  const start = center(m.start);
+  w.player = {
+    x: start.x, y: start.y, face: 0, crouch: false, hidden: false, disguise: false,
+    channel: 0, drag: -1, step: 0,
   };
-  fall(w.player);
-  for (const e of w.foes) if (e.ai !== "wait") fall(e);
-  if (w.ally) fall(w.ally);
+  w.guards = m.guards.map(makeGuard);
+  w.lamps = m.lamps.map((l) => ({ x: (l.x + 0.5) * TS, y: (l.y + 0.5) * TS, r: l.r, on: true }));
+  w.papers = m.papers.map((p) => ({ x: p.x, y: p.y, req: p.req, got: false }));
+  w.locks = m.locks.map((l) => ({ x: l.x, y: l.y, open: false }));
+  w.checks = m.checks.map((c) => ({ x: c.x, y: c.y, used: false }));
+  w.uniforms = m.uniforms.map((u) => ({ x: u.x, y: u.y, got: false }));
+  w.choice = m.choice;
+  w.choiceId = m.choiceId;
+  w.exit = m.exit;
+  w.guide = m.guide;
+  w.chkX = start.x;
+  w.chkY = start.y;
+  w.camX = clamp(start.x - VW / 2, 0, Math.max(0, w.width - VW));
+  w.camY = clamp(start.y - VH / 2, 0, Math.max(0, w.height - VH));
 }
 
 export function applyLevel(w: World, id: number, talkKey: string): void {
-  const L = buildLevel(id);
+  const m = missionById(id);
   w.level = id;
-  w.plats = L.plats;
-  w.foes = L.foes;
-  w.papers = L.papers;
-  w.gems = L.gems;
-  w.extras = L.extras;
-  w.props = L.props;
-  w.markX = L.markX;
-  w.checks = L.checks;
-  w.hazards = L.hazards;
-  w.exitX = L.exitX;
-  w.width = L.width;
-  w.bg = L.bg;
-  w.rainOn = L.rainOn;
-  if (!L.rainOn) w.rain = [];
-  w.obj = L.obj;
-  w.caption = L.caption;
-  w.ally = L.ally;
-  w.player = mkEnt(70, 280, "player");
-  w.camX = 0;
-  w.camMin = 0;
+  w.mode = "play";
+  missionWorld(w, m);
   w.time = 0;
-  w.leaflets = 0;
-  w.fireX = -180;
-  w.gallery = false;
-  w.combo = 0;
-  w.comboT = 0;
-  w.maxCombo = 0;
-  w.disarmed = 0;
-  w.hitsTaken = 0;
-  w.perfects = 0;
-  w.focus = 0;
-  w.alarm = 0;
-  w.score = 0;
-  w.rank = "";
-  w.bolts = [];
-  w.ghosts = [];
-  w.bossDown = false;
-  w.wave = 0;
-  w.fast = id === 5;
-  w.broke = false;
-  w.jatin = false;
-  w.bars = false;
-  w.flags = 0;
-  w.days = 0;
-  w.burn = 0;
-  w.aid = 0;
-  w.stand = 0;
-  w.leafCd = 0;
-  w.breadX = 760;
-  w.breadOn = false;
-  w.lesson = id === 1 ? 0 : 5;
-  w.heavyOn = id > 1;
-  w.dashOn = id > 1;
-  w.hint = id === 1 ? (HINTS[0] ?? "") : "";
-  w.endTalk = "";
+  w.t = 0;
+  w.agent = AGENT[id] ?? "kite";
+  w.obj = OBJ[id] ?? "";
+  w.caption = CAPTION[id] ?? "";
   w.banner = LNAME[id] ?? "";
-  w.bannerT = 1.3;
+  w.bannerT = 2.1;
+  w.hint = id === 1 ? (HINTS[0] ?? "") : "";
+  w.lesson = id === 1 ? 0 : 5;
+  w.actLabel = "Action";
+  w.detect = 0;
+  w.lit = false;
+  w.phaseT = 0;
+  w.spotted = false;
+  w.chase = false;
+  w.sprinting = false;
+  w.hugging = false;
+  w.peek = false;
+  w.uniformHeld = false;
+  w.notes = 0;
+  w.heat = 0;
+  w.hitsTaken = 0;
+  w.downs0 = w.story.downs;
+  w.rank = "";
+  w.score = 0;
+  w.revolt = 0;
+  w.trust = trustOf(w.story);
+  w.headline = "";
+  w.prompt = null;
+  w.asked = "|";
+  w.noises = [];
+  w.pebble = null;
   w.deadT = 0;
-  w.hitstop = 0;
-  w.slomo = 0;
-  w.shake = 0;
-  w.shakeT = 0;
-  w.chkX = 70;
-  w.chkY = 280;
-  settle(w);
-  w.chkY = w.player.y;
+  w.rainOn = false;
+  tune(w);
   w.save = takeSave(w);
-  if (talkKey && TALKS[talkKey]) {
-    w.talk = TALKS[talkKey];
+  if (talkKey) {
+    w.talk = brief(id, w.story);
     w.talkI = 0;
     w.talkShown = 0;
     w.mode = "talk";
-  } else w.mode = "play";
+  }
+}
+
+function seedRain(): Spark[] {
+  const rain: Spark[] = [];
+  for (let i = 0; i < 46; i++) {
+    rain.push({
+      x: Math.random() * VW, y: Math.random() * VH, vx: -30, vy: 280,
+      life: 1, size: 1 + Math.random() * 1.4,
+    });
+  }
+  return rain;
 }
 
 export function fresh(): World {
   return {
-    mode: "title", level: 0, unlocked: 1, t: 0, time: 0, camX: 0,
-    shake: 0, shakeT: 0, hitstop: 0, slomo: 0,
-    player: mkEnt(80, 300, "player"), ally: null, foes: [], plats: [],
-    parts: [], rain: seedRain(48), papers: [], gems: [], extras: [], props: [], checks: [], hazards: [],
-    markX: 0,
-    bolts: [], ghosts: [],
-    exitX: 1000, fireX: -200, leaflets: 0, days: 0,
+    mode: "title", level: 0, unlocked: 1, t: 0, time: 0, camX: 0, camY: 0,
+    cols: 0, rows: 0, tiles: [],
+    player: { x: 80, y: 80, face: 0, crouch: false, hidden: false, disguise: false, channel: 0, drag: -1, step: 0 },
+    guards: [], lamps: [], papers: [], locks: [], noises: [], pebble: null,
+    checks: [], uniforms: [], choice: { x: 0, y: 0 }, choiceId: "", exit: { x: 0, y: 0 }, guide: [],
+    story: emptyStory(), prompt: null, asked: "|", agent: "kite",
     talk: [], talkI: 0, talkShown: 0,
-    banner: "", bannerT: 0, hint: "", obj: "", caption: "",
-    score: 0, rank: "", combo: 0, comboT: 0, maxCombo: 0,
-    disarmed: 0, hitsTaken: 0, perfects: 0, focus: 0, alarm: 0,
-    lesson: 0, heavyOn: false, dashOn: false,
-    chkX: 80, chkY: 300, deadT: 0, width: VW, bg: "title",
-    rainOn: true, gallery: false, camMin: 0, endTalk: "",
-    bossDown: false, wave: 0, fast: false, broke: false, jatin: false,
-    bars: false, flags: 0, burn: 0, aid: 0, stand: 0, leafCd: 0,
-    breadX: 760, breadOn: false, save: null,
+    banner: "", bannerT: 0, hint: "", obj: "", caption: "", actLabel: "",
+    detect: 0, lit: false, phaseT: 0, spotted: false, chase: false, sprinting: false,
+    hugging: false, peek: false, uniformHeld: false, notes: 0, heat: 0, hitsTaken: 0, downs0: 0,
+    lesson: 0, rank: "", score: 0, revolt: 0, trust: 0, headline: "",
+    chkX: 80, chkY: 80, save: null, deadT: 0, rain: seedRain(), rainOn: true,
+    width: VW, height: VH,
   };
 }
 
 export function respawn(w: World): void {
   if (w.save) applySave(w, w.save);
-  const p = w.player;
-  p.x = w.chkX;
-  p.y = w.chkY;
-  p.vx = 0;
-  p.vy = 0;
-  p.hp = p.maxHp;
-  p.st = "idle";
-  p.inv = 1;
-  p.h = 78;
-  p.buf = 0;
-  p.bufT = 0;
-  p.hold = 0;
-  p.queue = 0;
-  if (w.ally) {
-    w.ally.x = p.x - 50;
-    w.ally.y = p.y;
-    w.ally.hp = w.ally.maxHp;
-    w.ally.st = "idle";
-    w.ally.vx = 0;
-    w.ally.vy = 0;
-  }
+  w.player.x = w.chkX;
+  w.player.y = w.chkY;
+  w.player.hidden = false;
+  w.player.drag = -1;
+  w.player.channel = 0;
+  w.phaseT = 0;
+  w.pebble = null;
+  w.noises = [];
   w.mode = "play";
-  w.hitstop = 0;
-  w.slomo = 0;
-  w.bolts = [];
+  w.banner = "CHECKPOINT";
+  w.bannerT = 0.55;
 }
 
 export function grade(w: World): string {
-  const par = [0, 200, 210, 180, 190, 110][w.level] ?? 180;
-  let s = 100 - w.hitsTaken * 7 + Math.min(12, w.perfects) * 3;
-  if (w.broke) s -= 28;
-  if (w.alarm >= 100) s -= 12;
-  s -= Math.max(0, w.time - par) * 0.18;
+  const par = [0, 70, 70, 70, 65, 60, 70][w.level] ?? 70;
+  let s = 100;
+  if (w.spotted) s -= 22;
+  s -= w.heat * 8;
+  s -= w.hitsTaken * 12;
+  s += Math.min(3, w.notes) * 4;
+  s -= Math.max(0, w.time - par) * 0.25;
   if (s >= 86) return "S";
   if (s >= 70) return "A";
-  if (s >= 50) return "B";
+  if (s >= 52) return "B";
   return "C";
 }
 
 export function finishLevel(w: World): void {
   w.rank = grade(w);
-  const found = w.gems.filter((g) => g.got).length;
-  w.score = Math.max(0, Math.round(1000 - w.hitsTaken * 40 + w.perfects * 25 + w.disarmed * 15 + found * 80 - w.time));
-  if (w.unlocked < w.level + 1) w.unlocked = Math.min(5, w.level + 1);
+  w.trust = trustOf(w.story);
+  w.revolt = revoltOf(w.story, w.notes, w.heat);
+  w.headline = headlineFor(w);
+  w.score = Math.max(0, Math.round(1000 - w.hitsTaken * 80 - w.heat * 40 - (w.spotted ? 100 : 0) + w.notes * 40 - w.time));
+  if (w.unlocked < w.level + 1) w.unlocked = Math.min(LEVELS, w.level + 1);
   w.mode = "done";
   w.banner = w.rank;
-  w.bannerT = 2;
+  w.bannerT = 1.4;
 }
 
 export function advanceFromDone(w: World): void {
-  if (w.level >= 5) {
+  if (w.level >= LEVELS) {
     w.mode = "finale";
     w.t = 0;
     return;
   }
-  applyLevel(w, w.level + 1, "l" + String(w.level + 1));
+  applyLevel(w, w.level + 1, "brief");
 }
 
 function updateTalk(w: World, inp: Inp, dt: number): void {
-  w.talkShown += dt * 42;
+  w.talkShown += dt * 46;
   const line = w.talk[w.talkI];
-  if (!line) {
-    if (w.endTalk === "finale") {
-      w.mode = "finale";
-      w.t = 0;
-    } else if (w.endTalk === "l4end") finishLevel(w);
-    else if (w.endTalk === "fast") w.mode = "play";
-    else if (w.level === 5 && w.endTalk === "") w.mode = "play";
-    else w.mode = "play";
-    return;
-  }
-  if (inp.startP || inp.atkP || inp.jumpP) {
+  if (!line) { w.mode = "play"; return; }
+  if (inp.startP) {
     if (w.talkShown < line.text.length) w.talkShown = line.text.length;
     else {
       w.talkI += 1;
@@ -1599,32 +1298,25 @@ function updateTalk(w: World, inp: Inp, dt: number): void {
   }
 }
 
-export function stepParts(arr: Spark[], dt: number, rain: boolean): void {
-  for (let i = arr.length - 1; i >= 0; i--) {
-    const q = arr[i];
-    if (!q) continue;
+function stepRain(w: World, dt: number): void {
+  for (const q of w.rain) {
     q.x += q.vx * dt;
     q.y += q.vy * dt;
-    q.life -= dt;
-    if (rain) {
-      if (q.y > VH || q.x < -20) {
-        q.x = Math.random() * (VW + 240);
-        q.y = -12;
-        q.life = 1;
-      }
-    } else if (q.life <= 0) arr.splice(i, 1);
+    if (q.y > VH || q.x < -20) {
+      q.x = Math.random() * (VW + 80);
+      q.y = -8;
+    }
   }
 }
 
 export function tick(w: World, inp: Inp, dt: number): void {
-  if (w.shakeT > 0) w.shakeT -= dt;
-  else w.shake = 0;
   if (w.mode === "pause") return;
   if (w.mode === "title" || w.mode === "select") {
     w.t += dt;
+    stepRain(w, dt);
     if (w.mode === "title" && inp.pauseP) w.mode = "select";
     else if (w.mode === "select" && inp.pauseP) w.mode = "title";
-    if (w.mode === "title" && inp.startP) applyLevel(w, 1, "l1");
+    if (w.mode === "title" && inp.startP) applyLevel(w, 1, "brief");
     return;
   }
   if (w.mode === "talk") {
@@ -1634,46 +1326,21 @@ export function tick(w: World, inp: Inp, dt: number): void {
   }
   if (w.mode === "dead") {
     w.deadT -= dt;
-    w.player.st = "down";
     if (w.deadT <= 0 || inp.startP) respawn(w);
     return;
   }
   if (w.mode === "done") {
-    if (inp.startP || inp.jumpP) advanceFromDone(w);
+    if (inp.startP) advanceFromDone(w);
     return;
   }
   if (w.mode === "finale") {
     w.t += dt;
-    if (w.t > 6 && (inp.startP || inp.jumpP)) {
+    if (w.t > 8 && inp.startP) {
       w.mode = "title";
       w.t = 0;
       w.rainOn = true;
-      if (w.rain.length < 10) w.rain = seedRain(48);
     }
     return;
   }
   if (w.mode === "play") updatePlay(w, inp, dt);
-}
-
-export function playerFrame(p: Ent, t: number): string {
-  if (p.st === "down") return "player_down";
-  if (p.st === "hit") return "player_hit";
-  if (p.st === "dash") return "player_dash";
-  if (p.st === "slide" || p.st === "dodge") return "player_dodge";
-  if (p.st === "heavy") return p.stT < 0.12 ? "player_idle" : "player_attack";
-  if (p.st === "attack") return "player_attack";
-  if (!p.onG) return "player_jump";
-  if (Math.abs(p.vx) > 40) return Math.floor(t / 0.11) % 2 === 0 ? "player_run1" : "player_run2";
-  return "player_idle";
-}
-
-export function foeFrame(e: Ent): string {
-  if (e.st === "down" || e.hp <= 0) return "officer_down";
-  if (e.kind === "constable") return "constable_attack";
-  if (e.ai === "telegraph" || e.ai === "strike" || e.ai === "aim" || e.st === "attack") return "officer_attack";
-  return "officer_idle";
-}
-
-export function allyFrame(a: Ent): string {
-  return a.st === "run" ? "durga_walk" : "durga_idle";
 }

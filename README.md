@@ -1,26 +1,41 @@
 # Inquilab
 
-A dramatic, non-lethal 2D action game about Bhagat Singh and the Hindustan Socialist Republican Association, from the Lahore protest of October 1928 to the dawn of 23 March 1931.
+Inquilab: Shadow Raj is a top-down stealth game. An indigenous rebel cell, commanded by Netaji Subhas Chandra Bose, opens the road for his column. The British Raj falls.
 
-You play five chapters. Constables are knocked down, disarmed, or evaded. Nobody is killed.
+The people you play are invented operatives. Famous revolutionaries are not the player characters. Takedowns are non-lethal: a sentry is laid down, dragged, and hidden.
 
-The pictures are painted scenes and character frames. Shields, rifle bolts, trails, and the heads-up display are drawn in play.
+## The cell
 
-## How a chapter plays
+| Codename | Operative | Home | Specialty |
+| --- | --- | --- | --- |
+| Kite | Arun Menon | Kozhikode | Scout. Rooftops and vents. Drops a stone from above. |
+| Veil | Leela Sen | Dhaka | Disguise. A stolen uniform holds until you sprint. |
+| Key | Rajan Pillai | Travancore | Locks. Opens the nearest door, and cuts the lamps when he is clear of one. |
 
-Tap Attack and the light comes out on the press. Hold it, and the heavy comes out when you let go. A dodge cuts the swing short. The third light drops a baton constable. The heavy breaks a shield. Dodge as a swing is telegraphed: passing through it grants a focus window, and the next hit that connects is heavier and opens a guard. Dash, from chapter 2, has no invulnerability; hold Down and dash to slide under a beam. Jumps are shorter if you release early. A perfect dodge after Jatin's death also steadies the fast.
+Netaji briefs each mission over the radio. Farid Ansari, codename Wire, is the handler on the line: an older Calcutta man in a waistcoat and round spectacles. Netaji reacts to what you chose last time, and he leads the column in the finale. Trust and the shape of the victory follow those choices. The Raj falls in every ending.
 
-Each chapter ends with a rank from S to C, from the hits you took, the reads you made, the alarm you raised, and the time. A checkpoint rewinds the room, so a death is not a way to farm the rank. Health is five. Falling off the world, or being seized, returns you to the last checkpoint.
+## How a mission plays
 
-## Chapters
+The view is overhead, a little above the floor, and the camera follows you with a short look ahead. Maps are larger than the screen.
 
-1. **Rooftop dragnet.** Sukhdev talks you through the string, the dodge, and the heavy on the first roof. A scaffold climbs over a lathi line on the low road. Past a quiet roof, the lanes close behind you across collapsing brick. Pillars lead to an inspector who has to be disarmed before the cordon lets you through. Folded copies sit off the path.
-2. **Night train.** Stay at Durga Devi's shoulder on the stone platform and the watch does not know you. Step across the carriages, duck the beam on the moving car, and close on the rifleman on the last carriage. She trips anyone who gets on you. Lose her and the chapter fails.
-3. **The workshop.** Three pamphlet bundles, up the stairs and across a floor that drops when you stand on it. The fire climbs behind you and takes a burning stretch of boards. Chandrashekhar Azad holds the door once the bundles are in hand. The men he stalled still have to be disarmed.
-4. **The Assembly.** Slip the cones or fight through the marble hall and its balcony. The gallery is further on. Throw eight leaflets with Attack, or with the Throw button. Batukeshwar Dutt throws with you on the fourth and the eighth. Then stand in the circle and be arrested. An alarm fills the house.
-5. **The long fast.** The cell has a bunk and a stone floor. The same fights, slower as the days pass. Warders come in. Refuse the bread. After Jatin's letter, a perfect dodge mends you. Disarm the jailer once the fast has held, or strike the bread and be taken earlier, at a worse rank.
+Sentries walk a route. Their cones are drawn on the floor and stop at walls and crates. A lamp lengthens a cone. Darkness, a crouch, and tall grass shorten it. States run from a patrol, to a suspicious `?`, to an alert `!`, to a search, and back to the route. An alert whistles to nearby sentries.
 
-The finale is the leaflet from the Assembly, on the morning of 23 March 1931.
+A light push on the stick sneaks. A full push runs, and running is loud. Crouch is quieter still. Hug a wall to stay in its cover, and push into it to peek. Action is contextual: subdue from behind, drag a body, hide in a basket or a crowd, turn a lock, knock, or put on a coat. Throw a pebble, and drag the button to aim it. Each spy's ability button is the trick in the table above.
+
+If you are seen, a short alert phase starts. Break the line of sight and hide until it clears, or be caught and return to the checkpoint. There is no firefight.
+
+Being unseen, sparing sentries, collecting notes, and the clock set the rank from S to C. A cleared mission shows a radio headline and the rebellion's strength. The next briefing remembers the choice.
+
+## Missions
+
+1. **The Lahore roofs.** Kite. The vents run above the bazaar. Take the troop plans. Save the courier, or leave with the plans. The street is the loud way. The roof is the quiet one.
+2. **The arms train.** Veil. A trench under the yard, or the lit platform in a stolen coat. Sabotage the train, or hijack it for the cells. Saving the courier thins the watch. Taking only the plans thickens it.
+3. **The press.** Key. A dark passage around a lit hall. Carry the press, the forged passes, or both. A sabotage on the train removes a searcher. With no lock in reach, his hands cut the lamps.
+4. **The assembly.** Veil, again. The gallery is dark. The floor is bright. Swap the file, or read the declaration aloud. Carrying both from the workshop adds a patrol.
+5. **The lock.** Key. Open the west cell and walk the leaders out. Spare the turncoat warder, or lock him in.
+6. **The Viceroy's house.** Kite again. The roof, the lamp room, then the gate. Wait for Netaji's column, or light the signal early. Sparing the warder takes an officer off the court.
+
+The epilogue is the column coming through the gate. How the republic starts depends on who you spared, what you stole, and how loud the cell became.
 
 ## Controls
 
@@ -28,18 +43,17 @@ Desktop:
 
 | Action | Keys |
 | --- | --- |
-| Move | WASD or arrow keys |
-| Crouch | Hold Down |
-| Jump | Space (also W / Up) |
-| Light string | Tap J or X. The swing starts on the press |
-| Heavy | Hold J or X, then let go. The heavy starts on the release |
-| Dash / slide | K or C (hold Down to slide). Dash is locked until the train |
-| Dodge | L or Shift |
-| Begin, advance dialogue, continue | Enter or Space |
-| Chapters | P, or 1–5 once a chapter is unlocked |
+| Move | WASD or arrow keys. Shift runs. |
+| Crouch | C |
+| Action | E |
+| Throw | Q, in the direction you face |
+| Ability | F |
+| Choose | 1, 2, or 3 |
+| Advance the radio, continue | Enter or Space |
+| Missions | P, or 1–6 once a mission is unlocked |
 | Pause | Esc or P |
 
-Touch, landscape: a floating stick on the left half. Flick it to dash. Attack, Jump, Dodge, and Dash sit in an arc under the right thumb. Dash becomes Slide while the stick is down, and Throw in the Assembly gallery. Hold Attack, then let go, for the heavy. The portrait hint asks you to turn the phone; the buttons still work upright. Tap the picture to advance dialogue and to continue after a chapter.
+Phone, landscape: the game asks to launch in landscape and shows a rotate card if the phone is upright. A stick sits on the left. A light push sneaks and a full push runs. On the right, a large Action button, then Ability, Throw, and Crouch along the arc. Drag Throw to aim. The portrait is the spy you are playing. The bar under it is the alert. The circle at the top right is the radar. Pause has size, opacity, and left-hand layout, remembered on the device.
 
 ## Run locally
 
@@ -57,7 +71,7 @@ npm run build
 npm run preview
 ```
 
-`npm test` checks the paintings, the combat rules, the disguise, the chapter clears, and that a runner can cross the rooftops and the train.
+`npm test` checks the paintings, vision and walls, grass, noise, a subdue, Veil's coat, Key's lamps, Key's lock, the choices that carry, and a clear of all six missions.
 
 ## Deploy on Render
 
@@ -76,17 +90,6 @@ The built JavaScript, CSS, and paintings are content-hashed under `dist/static/`
 
 ## Art
 
-Scenes and portraits are the painted webps. Each chapter has a far layer, a mid layer, and a tileable ground strip. Sprite frames are the same cut paintings, saved at 273 pixels tall — twice the height they are drawn on the 960×540 canvas, which matches a sharp screen. The title opens as soon as its painting is in. Chapter 1’s layers, ground, portraits, and frames load next, and the later chapters load while you play. The game does not fetch anything except those files.
+The title and the finale still use the painted cards. Codec portraits are the painted busts of Netaji, Wire, and the three spies, loaded with the mission that needs them. The title waits only on its painting.
 
-A few poses were never painted. The game keeps the frames it has and draws the rest in motion:
-
-- A shield is the officer's idle frame with an arc in front of it. A guard pose would help most.
-- A rifleman aims with the officer's attack frame, a line, and a bolt. An aim pose would help.
-- The inspector is the officer drawn larger. An inspector frame, and the inspector portrait that exists outside this site, would help.
-- The heavy blow holds the idle frame for its windup, then the attack frame. A heavy-attack painting would help.
-- Azad and Dutt assist without bodies: he slows the room, Dutt's throw staggers the gallery. Full-body paintings would let them stand in the scene.
-- Constables only have an attack painting, so they patrol in that pose. A downed constable uses the officer's fallen painting.
-- Officers have idle, attack, and down, so they patrol in the idle painting.
-- Dodge and slide share the dodge painting.
-
-The bundle also contains a train-compartment painting and portraits of Rajguru, a witness, and Bagh that this action version never shows. Those files are not in the site.
+Floors, props, and directional figures are the painted top-down pack. A floor is sampled in world space with a row shift, a tint, and a scuff so the repeat does not read as a grid. Lamps, distance, and a vignette darken what the operative cannot stand in. Vision cones stay drawn on the floor. Bars, sandbags, and the guard post sit on walls and edges. Walk frames exist for facing down. Up and side walks bob, squash, and sway the idle frame. The sari is never mirrored. The camera is zoomed so the figures read on a phone.
