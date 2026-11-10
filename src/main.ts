@@ -175,7 +175,7 @@ function boot(art: ArtBook): void {
   mustEl("btn-resume").addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (world.mode === "pause") world.mode = world.level === 5 ? "endure" : "play";
+    if (world.mode === "pause") world.mode = "play";
   });
   mustEl("btn-retry").addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -219,15 +219,19 @@ function boot(art: ArtBook): void {
     canvas.height = Math.round(VH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = "medium";
   };
   fit();
   window.addEventListener("resize", fit);
 
   let last = performance.now();
+  let acc = 0;
+  const STEP = 1 / 60;
   const loop = (now: number) => {
-    const dt = Math.min(0.05, (now - last) / 1000);
+    let frame = (now - last) / 1000;
     last = now;
+    if (frame > 0.12) frame = 0.12;
+    acc += frame;
     if (pending?.kind === "begin" && world.mode === "title" && ready(levelPaths(1))) {
       pending = null;
       hideWait();
@@ -300,14 +304,24 @@ function boot(art: ArtBook): void {
       }
     }
 
-    if (inp.pauseP && (world.mode === "play" || world.mode === "endure")) world.mode = "pause";
-    else if (inp.pauseP && world.mode === "pause") world.mode = world.level === 5 ? "endure" : "play";
-
-    tick(world, inp, dt);
-    if (world.mode !== "pause") {
-      stepParts(world.parts, dt, false);
-      if (world.rainOn || world.mode === "title" || world.mode === "select") stepParts(world.rain, dt, true);
+    let steps = 0;
+    while (acc >= STEP && steps < 5) {
+      acc -= STEP;
+      const edge = steps === 0;
+      if (edge && inp.pauseP && world.mode === "play") world.mode = "pause";
+      else if (edge && inp.pauseP && world.mode === "pause") world.mode = "play";
+      const sub: Inp = edge ? inp : {
+        ...inp,
+        jumpP: false, atkP: false, dashP: false, dodgeP: false, startP: false, pauseP: false,
+      };
+      tick(world, sub, STEP);
+      if (world.mode !== "pause") {
+        stepParts(world.parts, STEP, false);
+        if (world.rainOn || world.mode === "title" || world.mode === "select") stepParts(world.rain, STEP, true);
+      }
+      steps += 1;
     }
+    if (steps === 5) acc = 0;
 
     ctx.clearRect(0, 0, VW, VH);
     drawWorld(ctx, world, art);
