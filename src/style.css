@@ -200,6 +200,26 @@ body[data-mode="dead"] #btn-continue {
 
 #loading.hidden { display: none; }
 
+#chapter-wait {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  z-index: 6;
+  margin: 0;
+  padding: 8px 14px;
+  background: rgba(10, 8, 10, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--gold);
+}
+
+#chapter-wait[hidden] { display: none; }
+
 .loading-title {
   margin: 0;
   font-size: 48px;
