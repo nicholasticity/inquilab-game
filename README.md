@@ -8,17 +8,17 @@ The pictures are painted scenes and character frames. Shields, rifle bolts, trai
 
 ## How a chapter plays
 
-Tap Attack for a three-hit string. The third hit drops a baton constable. Hold Attack through the first hit for a heavy blow that breaks a shield. Dodge as a swing is telegraphed: passing through it grants a focus window, and the next hit that connects is heavier and opens a guard. Dash, from chapter 2, has no invulnerability; hold Down to slide under a beam. A perfect dodge after Jatin's death also steadies the fast.
+Tap Attack and the light comes out on the press. Hold it, and the heavy comes out when you let go. A dodge cuts the swing short. The third light drops a baton constable. The heavy breaks a shield. Dodge as a swing is telegraphed: passing through it grants a focus window, and the next hit that connects is heavier and opens a guard. Dash, from chapter 2, has no invulnerability; hold Down and dash to slide under a beam. Jumps are shorter if you release early. A perfect dodge after Jatin's death also steadies the fast.
 
 Each chapter ends with a rank from S to C, from the hits you took, the reads you made, the alarm you raised, and the time. A checkpoint rewinds the room, so a death is not a way to farm the rank. Health is five. Falling off the world, or being seized, returns you to the last checkpoint.
 
 ## Chapters
 
-1. **Rooftop dragnet.** Sukhdev talks you through the string, the dodge, and the heavy. A lathi line holds the low road; the scaffolds go over it. The lanes close behind you. An inspector on the last roof has to be disarmed before the cordon lets you through.
-2. **Night train.** Stay at Durga Devi's shoulder and the platform watch does not know you. Between the cars, dodge the low beam, board the moving carriage, and close on the rifleman. She trips anyone who gets on you. Lose her and the chapter fails.
-3. **The workshop.** Three pamphlet bundles, with the fire climbing the stair behind you. Chandrashekhar Azad holds the door once the bundles are in hand. The men he stalled still have to be disarmed.
-4. **The Assembly.** Slip the cones or fight through the hall. From the gallery, throw eight leaflets with Attack. Batukeshwar Dutt throws with you on the fourth and the eighth. Then stand in the circle and be arrested. An alarm fills the house.
-5. **The long fast.** The same fights, slower as the days pass. Warders come into the cell. Refuse the bread. After Jatin's letter, a perfect dodge mends you. Disarm the jailer once the fast has held, or strike the bread and be taken earlier, at a worse rank.
+1. **Rooftop dragnet.** Sukhdev talks you through the string, the dodge, and the heavy on the first roof. A scaffold climbs over a lathi line on the low road. Past a quiet roof, the lanes close behind you across collapsing brick. Pillars lead to an inspector who has to be disarmed before the cordon lets you through. Folded copies sit off the path.
+2. **Night train.** Stay at Durga Devi's shoulder on the stone platform and the watch does not know you. Step across the carriages, duck the beam on the moving car, and close on the rifleman on the last carriage. She trips anyone who gets on you. Lose her and the chapter fails.
+3. **The workshop.** Three pamphlet bundles, up the stairs and across a floor that drops when you stand on it. The fire climbs behind you and takes a burning stretch of boards. Chandrashekhar Azad holds the door once the bundles are in hand. The men he stalled still have to be disarmed.
+4. **The Assembly.** Slip the cones or fight through the marble hall and its balcony. The gallery is further on. Throw eight leaflets with Attack, or with the Throw button. Batukeshwar Dutt throws with you on the fourth and the eighth. Then stand in the circle and be arrested. An alarm fills the house.
+5. **The long fast.** The cell has a bunk and a stone floor. The same fights, slower as the days pass. Warders come in. Refuse the bread. After Jatin's letter, a perfect dodge mends you. Disarm the jailer once the fast has held, or strike the bread and be taken earlier, at a worse rank.
 
 The finale is the leaflet from the Assembly, on the morning of 23 March 1931.
 
@@ -31,15 +31,15 @@ Desktop:
 | Move | WASD or arrow keys |
 | Crouch | Hold Down |
 | Jump | Space (also W / Up) |
-| Light string | Tap J or X |
-| Heavy | Hold J or X through the first hit |
+| Light string | Tap J or X. The swing starts on the press |
+| Heavy | Hold J or X, then let go. The heavy starts on the release |
 | Dash / slide | K or C (hold Down to slide). Dash is locked until the train |
 | Dodge | L or Shift |
 | Begin, advance dialogue, continue | Enter or Space |
 | Chapters | P, or 1–5 once a chapter is unlocked |
 | Pause | Esc or P |
 
-Touch: the on-screen pad, and Dodge, Dash, Attack, Jump. Hold Attack for the heavy. Tap the picture to advance dialogue and to continue after a chapter.
+Touch, landscape: a floating stick on the left half. Flick it to dash. Attack, Jump, Dodge, and Dash sit in an arc under the right thumb. Dash becomes Slide while the stick is down, and Throw in the Assembly gallery. Hold Attack, then let go, for the heavy. The portrait hint asks you to turn the phone; the buttons still work upright. Tap the picture to advance dialogue and to continue after a chapter.
 
 ## Run locally
 
@@ -76,7 +76,7 @@ The built JavaScript, CSS, and paintings are content-hashed under `dist/static/`
 
 ## Art
 
-Scenes and portraits are the painted webps. Sprite frames are the same cut paintings, saved at 273 pixels tall — twice the height they are drawn on the 960×540 canvas, which matches a sharp screen. The title opens as soon as its painting is in. Chapter 1’s painting, portraits, and frames load next, and the later chapters load while you play. The game does not fetch anything except those files.
+Scenes and portraits are the painted webps. Each chapter has a far layer, a mid layer, and a tileable ground strip. Sprite frames are the same cut paintings, saved at 273 pixels tall — twice the height they are drawn on the 960×540 canvas, which matches a sharp screen. The title opens as soon as its painting is in. Chapter 1’s layers, ground, portraits, and frames load next, and the later chapters load while you play. The game does not fetch anything except those files.
 
 A few poses were never painted. The game keeps the frames it has and draws the rest in motion:
 
