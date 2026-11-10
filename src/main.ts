@@ -25,21 +25,24 @@ interface Hold {
   atk: boolean;
   dash: boolean;
   dodge: boolean;
+  act: boolean;
 }
 
-const HOLD_KEYS: (keyof Hold)[] = ["l", "r", "u", "d", "jump", "atk", "dash", "dodge"];
+const HOLD_KEYS: (keyof Hold)[] = ["l", "r", "u", "d", "jump", "atk", "dash", "dodge", "act"];
 
 function emptyHold(): Hold {
-  return { l: false, r: false, u: false, d: false, jump: false, atk: false, dash: false, dodge: false };
+  return { l: false, r: false, u: false, d: false, jump: false, atk: false, dash: false, dodge: false, act: false };
 }
 
-const art: ArtBook = { bg: {}, portrait: {}, frame: {} };
+const art: ArtBook = { bg: {}, portrait: {}, frame: {}, ground: {}, prop: {} };
 const loaded = new Map<string, HTMLImageElement>();
 const inflight = new Map<string, Promise<void>>();
 
 function place(path: string, im: HTMLImageElement): void {
   const url = urlForPath(path);
   if (path.startsWith("assets/bg/")) art.bg[path.slice("assets/bg/".length, -".webp".length)] = im;
+  else if (path.startsWith("assets/ground/")) art.ground[path.slice("assets/ground/".length, -".webp".length)] = im;
+  else if (path.startsWith("assets/prop/")) art.prop[path.slice("assets/prop/".length, -".webp".length)] = im;
   else if (path.startsWith("assets/portraits/")) art.portrait[path.slice("assets/portraits/".length, -".webp".length)] = im;
   else if (path.startsWith("assets/frames/")) art.frame[path.slice("assets/frames/".length, -".webp".length)] = im;
   loaded.set(url, im);
@@ -87,7 +90,75 @@ function boot(art: ArtBook): void {
   const world: World = fresh();
   const keys: Record<string, boolean> = {};
   const hold = emptyHold();
-  const prev = { jump: false, atk: false, dash: false, dodge: false, start: false, pause: false };
+  const prev = { jump: false, atk: false, dash: false, dodge: false, act: false, start: false, pause: false };
+  const frame = mustEl("frame");
+  const stickEl = mustEl("stick");
+  const knobEl = mustEl("stick-knob");
+  const actBtn = mustEl("btn-act");
+  let stickId: number | null = null;
+  let flick = false;
+  let prevKnob = 0;
+  let prevKnobT = 0;
+  const clearStick = () => {
+    stickId = null;
+    hold.l = false;
+    hold.r = false;
+    hold.u = false;
+    hold.d = false;
+    stickEl.hidden = true;
+    knobEl.style.transform = "translate(0px, 0px)";
+  };
+  const aimStick = (clientX: number, clientY: number, originX: number, originY: number) => {
+    let dx = clientX - originX;
+    let dy = clientY - originY;
+    const dist = Math.hypot(dx, dy);
+    const max = 56;
+    if (dist > max) {
+      dx = dx / dist * max;
+      dy = dy / dist * max;
+    }
+    knobEl.style.transform = "translate(" + dx.toFixed(1) + "px, " + dy.toFixed(1) + "px)";
+    const dead = 12;
+    hold.l = dx < -dead;
+    hold.r = dx > dead;
+    hold.u = dy < -dead;
+    hold.d = dy > dead * 1.15;
+    const now = performance.now();
+    const dt = (now - prevKnobT) / 1000;
+    if (dt > 0 && dt < 0.08 && Math.abs(dx - prevKnob) / dt > 1400 && Math.abs(dx) > Math.abs(dy)) flick = true;
+    prevKnob = dx;
+    prevKnobT = now;
+  };
+  let originX = 0;
+  let originY = 0;
+  frame.addEventListener("pointerdown", (e) => {
+    if (document.body.dataset.mode !== "play") return;
+    if (e.target instanceof Element && e.target.closest("button")) return;
+    const rect = frame.getBoundingClientRect();
+    if (e.clientX - rect.left > rect.width * 0.48) return;
+    stickId = e.pointerId;
+    originX = e.clientX;
+    originY = e.clientY;
+    prevKnob = 0;
+    prevKnobT = performance.now();
+    stickEl.hidden = false;
+    stickEl.style.left = (e.clientX - rect.left) + "px";
+    stickEl.style.top = (e.clientY - rect.top) + "px";
+    frame.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  frame.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== stickId) return;
+    aimStick(e.clientX, e.clientY, originX, originY);
+  });
+  const endStick = (e: PointerEvent) => {
+    if (e.pointerId !== stickId) return;
+    if (frame.hasPointerCapture(e.pointerId)) frame.releasePointerCapture(e.pointerId);
+    clearStick();
+  };
+  frame.addEventListener("pointerup", endStick);
+  frame.addEventListener("pointercancel", endStick);
+  frame.addEventListener("contextmenu", (e) => e.preventDefault());
   const pulses = { start: false, pause: false };
   let uiMode: Mode | null = null;
   let uiUnlocked = -1;
@@ -140,11 +211,20 @@ function boot(art: ArtBook): void {
       e.stopPropagation();
       el.setPointerCapture(e.pointerId);
       hold[key] = true;
+      el.classList.add("is-down");
     };
-    const up = () => { hold[key] = false; };
+    const up = (e: PointerEvent) => {
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      hold[key] = false;
+      el.classList.remove("is-down");
+    };
     el.addEventListener("pointerdown", down);
     el.addEventListener("pointerup", up);
     el.addEventListener("pointercancel", up);
+    el.addEventListener("lostpointercapture", () => {
+      hold[key] = false;
+      el.classList.remove("is-down");
+    });
   };
 
   document.querySelectorAll<HTMLElement>("[data-hold]").forEach((el) => {
@@ -192,9 +272,6 @@ function boot(art: ArtBook): void {
     const m = world.mode;
     if (m === "title" || m === "talk" || m === "done" || m === "finale" || m === "dead") pulses.start = true;
   });
-
-  const frame = mustEl("frame");
-  frame.addEventListener("contextmenu", (e) => e.preventDefault());
 
   const prevent = new Set(["arrowleft", "arrowright", "arrowup", "arrowdown", " ", "space", "shift", "enter", "escape", "a", "d", "w", "s", "j", "x", "k", "c", "l", "p"]);
   window.addEventListener("keydown", (e) => {
@@ -251,9 +328,13 @@ function boot(art: ArtBook): void {
       if (n <= world.unlocked) applyLevel(world, n, n === 5 ? "l5" : "l" + String(n));
     }
     const down = (k: string) => keys[k] === true;
+    const throwing = world.mode === "play" && world.level === 4 && world.gallery && world.leaflets < 8;
+    const actLabel = throwing ? "Throw" : hold.d ? "Slide" : "Dash";
+    if (actBtn.textContent !== actLabel) actBtn.textContent = actLabel;
     const jumpNow = down(" ") || down("space") || down("arrowup") || down("w") || hold.jump;
     const atkNow = down("j") || down("x") || hold.atk;
-    const dashNow = down("k") || down("c") || hold.dash;
+    const actNow = hold.act;
+    const dashNow = down("k") || down("c") || hold.dash || (actNow && !throwing) || flick;
     const dodgeNow = down("l") || down("shift") || hold.dodge;
     const startNow = down("enter") || down(" ");
     const pauseNow = down("escape") || down("p");
@@ -267,19 +348,25 @@ function boot(art: ArtBook): void {
       jumpP: (jumpNow && !prev.jump),
       atk: atkNow,
       atkP: atkNow && !prev.atk,
+      atkR: prev.atk && !atkNow,
       dash: dashNow,
-      dashP: dashNow && !prev.dash,
+      dashP: (dashNow && !prev.dash) || flick,
       dodge: dodgeNow,
       dodgeP: dodgeNow && !prev.dodge,
+      act: actNow,
+      actP: throwing && actNow && !prev.act,
       startP: (startNow && !prev.start) || pulses.start,
       pauseP: (pauseNow && !prev.pause) || pulses.pause,
     };
+    flick = false;
     prev.jump = jumpNow;
     prev.atk = atkNow;
     prev.dash = dashNow;
     prev.dodge = dodgeNow;
+    prev.act = actNow;
     prev.start = startNow;
     prev.pause = pauseNow;
+    if (world.mode !== "play" && stickId !== null) clearStick();
     pulses.start = false;
     pulses.pause = false;
 
@@ -312,7 +399,7 @@ function boot(art: ArtBook): void {
       else if (edge && inp.pauseP && world.mode === "pause") world.mode = "play";
       const sub: Inp = edge ? inp : {
         ...inp,
-        jumpP: false, atkP: false, dashP: false, dodgeP: false, startP: false, pauseP: false,
+        jumpP: false, atkP: false, atkR: false, dashP: false, dodgeP: false, actP: false, startP: false, pauseP: false,
       };
       tick(world, sub, STEP);
       if (world.mode !== "pause") {

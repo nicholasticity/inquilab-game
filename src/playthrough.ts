@@ -27,13 +27,14 @@ function modeOf(w: World): string {
 function checkAssets(): void {
   const missing = allAssetPaths().filter((rel) => !fs.existsSync(path.resolve("src/art", rel.slice("assets/".length))));
   assert(missing.length === 0, "Missing assets: " + missing.join(", "));
-  assert(allAssetPaths().length === 28, "Expected 28 paintings");
+  assert(allAssetPaths().length === 38, "Expected 38 paintings");
   const covered = new Set<string>([...titlePaths(), ...levelPaths(1), ...deferredPaths()]);
   assert(covered.size === allAssetPaths().length, "Load groups should cover every painting once");
   for (const rel of allAssetPaths()) assert(covered.has(rel), "Uncovered painting " + rel);
   assert(titlePaths().join() === "assets/bg/title.webp", "Title should wait on its painting only");
   const first = levelPaths(1).join(" ");
-  assert(first.includes("assets/bg/lahore.webp") && first.includes("player_idle") && !first.includes("durga") && !first.includes("finale"), "Chapter 1 set");
+  assert(first.includes("assets/bg/lahore_far.webp") && first.includes("assets/bg/lahore_mid.webp") && first.includes("assets/ground/lahore.webp") && first.includes("player_idle") && !first.includes("durga") && !first.includes("finale") && !first.includes("station"), "Chapter 1 set");
+  assert(deferredPaths().some((rel) => rel.includes("station_far")) && deferredPaths().some((rel) => rel.includes("cell.webp")), "Later chapters should defer their layers");
   assert(levelPaths(2).some((rel) => rel.includes("durga_walk")), "Chapter 2 should include Durga");
   assert(finalePaths().join() === "assets/bg/finale.webp", "Finale painting");
   for (const level of [1, 2, 3, 4, 5]) {
@@ -198,7 +199,7 @@ function clearChapter(w: World, id: number): void {
   } else if (id === 4) {
     w.leaflets = 8;
     w.gallery = true;
-    w.player.x = 2920;
+    w.player.x = w.markX;
     w.player.y = 360;
     w.player.vx = 0;
     w.player.vy = 0;
@@ -250,15 +251,17 @@ function cross(id: number, goal: number): void {
   if (w.ally) w.ally.x = -400;
   let cool = 0;
   let best = 0;
-  for (let i = 0; i < 60 * 25; i++) {
+  for (let i = 0; i < 60 * 40; i++) {
     const p = w.player;
     const inp = blankInp();
     inp.r = true;
     const foot = p.y + p.h;
-    const ahead = w.plats.some((pl) => pl.t !== 4 && p.x + 50 > pl.x && p.x + 50 < pl.x + pl.w && Math.abs(pl.y - foot) < 30);
-    const higher = w.plats.some((pl) => pl.t !== 4 && p.x + 90 > pl.x && p.x + 40 < pl.x + pl.w && pl.y < foot - 36 && pl.y > foot - 150);
+    const landable = (t: number) => t !== 2 && t !== 4 && t !== 5;
+    const probe = p.x + 48;
+    const ahead = w.plats.some((pl) => landable(pl.t) && probe > pl.x && probe < pl.x + pl.w && pl.y >= foot - 26 && pl.y < foot + 40);
+    const stepUp = w.plats.some((pl) => landable(pl.t) && probe > pl.x - 8 && probe < pl.x + pl.w && pl.y < foot - 26 && pl.y > foot - 86);
     cool -= 1 / 60;
-    if (p.onG && cool <= 0 && (!ahead || higher)) {
+    if (p.onG && cool <= 0 && (!ahead || stepUp)) {
       inp.jump = true;
       inp.jumpP = true;
       cool = 0.4;
@@ -270,7 +273,47 @@ function cross(id: number, goal: number): void {
   fail("Chapter " + String(id) + " route ended at " + best.toFixed(0) + ", short of " + String(goal));
 }
 
+function feel(): void {
+  const tap = openPlay(1);
+  tap.lesson = 5;
+  tap.heavyOn = true;
+  const press = blankInp();
+  press.atk = true;
+  press.atkP = true;
+  tick(tap, press, 1 / 60);
+  assert(tap.player.st === "attack", "A tap should start the light on that frame");
+  const release = blankInp();
+  release.atkR = true;
+  tick(tap, release, 1 / 60);
+  assert(tap.player.queue === 0 && tap.player.st === "attack", "A tap should not queue a heavy");
+
+  const held = openPlay(1);
+  held.lesson = 5;
+  held.heavyOn = true;
+  for (let i = 0; i < 12; i++) {
+    const down = blankInp();
+    down.atk = true;
+    if (i === 0) down.atkP = true;
+    tick(held, down, 1 / 60);
+  }
+  assert(held.player.st === "attack", "Holding attack should still throw the light");
+  const up = blankInp();
+  up.atkR = true;
+  tick(held, up, 1 / 60);
+  assert(held.player.st === "heavy", "Releasing a hold should start the heavy");
+
+  const dodge = openPlay(1);
+  dodge.player.st = "attack";
+  dodge.player.stT = 0.1;
+  dodge.player.cool = 0;
+  const cut = blankInp();
+  cut.dodgeP = true;
+  tick(dodge, cut, 1 / 60);
+  assert(dodge.player.st === "dodge", "A dodge should cancel the swing");
+}
+
 checkAssets();
+feel();
 combat();
 perfectDodge();
 disguise();

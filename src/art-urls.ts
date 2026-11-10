@@ -1,10 +1,20 @@
-import assemblyUrl from "./art/bg/assembly.webp";
-import cellUrl from "./art/bg/cell.webp";
+import assemblyFarUrl from "./art/bg/assembly_far.webp";
+import assemblyMidUrl from "./art/bg/assembly_mid.webp";
+import cellFarUrl from "./art/bg/cell_far.webp";
+import cellMidUrl from "./art/bg/cell_mid.webp";
 import finaleUrl from "./art/bg/finale.webp";
-import lahoreUrl from "./art/bg/lahore.webp";
-import pressUrl from "./art/bg/press.webp";
-import stationUrl from "./art/bg/station.webp";
+import lahoreFarUrl from "./art/bg/lahore_far.webp";
+import lahoreMidUrl from "./art/bg/lahore_mid.webp";
+import pressFarUrl from "./art/bg/press_far.webp";
+import pressMidUrl from "./art/bg/press_mid.webp";
+import stationFarUrl from "./art/bg/station_far.webp";
+import stationMidUrl from "./art/bg/station_mid.webp";
 import titleUrl from "./art/bg/title.webp";
+import assemblyGroundUrl from "./art/ground/assembly.webp";
+import cellGroundUrl from "./art/ground/cell.webp";
+import lahoreGroundUrl from "./art/ground/lahore.webp";
+import pressGroundUrl from "./art/ground/press.webp";
+import stationGroundUrl from "./art/ground/station.webp";
 import constableAttackUrl from "./art/frames/constable_attack.webp";
 import durgaIdleUrl from "./art/frames/durga_idle.webp";
 import durgaWalkUrl from "./art/frames/durga_walk.webp";
@@ -30,13 +40,23 @@ import { allAssetPaths } from "./assets";
 
 /** Vite emits these with content hashes under dist/static/. */
 const URL_BY_PATH: Record<string, string> = {
-  "assets/bg/assembly.webp": assemblyUrl,
-  "assets/bg/cell.webp": cellUrl,
+  "assets/bg/assembly_far.webp": assemblyFarUrl,
+  "assets/bg/assembly_mid.webp": assemblyMidUrl,
+  "assets/bg/cell_far.webp": cellFarUrl,
+  "assets/bg/cell_mid.webp": cellMidUrl,
   "assets/bg/finale.webp": finaleUrl,
-  "assets/bg/lahore.webp": lahoreUrl,
-  "assets/bg/press.webp": pressUrl,
-  "assets/bg/station.webp": stationUrl,
+  "assets/bg/lahore_far.webp": lahoreFarUrl,
+  "assets/bg/lahore_mid.webp": lahoreMidUrl,
+  "assets/bg/press_far.webp": pressFarUrl,
+  "assets/bg/press_mid.webp": pressMidUrl,
+  "assets/bg/station_far.webp": stationFarUrl,
+  "assets/bg/station_mid.webp": stationMidUrl,
   "assets/bg/title.webp": titleUrl,
+  "assets/ground/assembly.webp": assemblyGroundUrl,
+  "assets/ground/cell.webp": cellGroundUrl,
+  "assets/ground/lahore.webp": lahoreGroundUrl,
+  "assets/ground/press.webp": pressGroundUrl,
+  "assets/ground/station.webp": stationGroundUrl,
   "assets/frames/constable_attack.webp": constableAttackUrl,
   "assets/frames/durga_idle.webp": durgaIdleUrl,
   "assets/frames/durga_walk.webp": durgaWalkUrl,

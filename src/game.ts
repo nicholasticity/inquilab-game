@@ -2,7 +2,7 @@ export const VW = 960;
 export const VH = 540;
 
 export interface AABB { x: number; y: number; w: number; h: number }
-export interface Plat extends AABB { t: number; vx: number }
+export interface Plat extends AABB { t: number; vx: number; k?: string; lim?: number }
 export interface Spark {
   x: number; y: number; vx: number; vy: number;
   life: number; max: number; size: number; color: string; kind: number;
@@ -20,8 +20,11 @@ export interface Ent extends AABB {
   tel: number; telMax: number;
   open: number; cool: number;
   tag: string; did: boolean; buf: number;
+  bufT: number; hold: number; queue: number;
 }
 export interface Paper { x: number; y: number; got: boolean }
+export interface Extra { x: number; y: number; frame: string; face: number; sc: number }
+export interface Prop { x: number; y: number; k: string }
 export interface Flag { x: number; y: number; used: boolean }
 export interface Line { who: string; text: string; port: string }
 export interface Bolt { x: number; y: number; vx: number; life: number }
@@ -29,9 +32,10 @@ export interface Ghost { x: number; y: number; face: number; life: number; frame
 export interface Inp {
   l: boolean; r: boolean; u: boolean; d: boolean;
   jump: boolean; jumpP: boolean;
-  atk: boolean; atkP: boolean;
+  atk: boolean; atkP: boolean; atkR: boolean;
   dash: boolean; dashP: boolean;
   dodge: boolean; dodgeP: boolean;
+  act: boolean; actP: boolean;
   startP: boolean; pauseP: boolean;
 }
 export type Mode = "title" | "select" | "talk" | "play" | "pause" | "dead" | "done" | "finale";
@@ -70,6 +74,10 @@ export interface World {
   parts: Spark[];
   rain: Spark[];
   papers: Paper[];
+  gems: Paper[];
+  extras: Extra[];
+  props: Prop[];
+  markX: number;
   checks: Flag[];
   hazards: AABB[];
   bolts: Bolt[];
@@ -197,16 +205,16 @@ const HINTS = [
   "Jump. Space, or Jump.",
   "Tap Attack. Three taps is a string. The third blow puts them down.",
   "Dodge as the baton lifts. Dodge through the swing and the next blow lands harder.",
-  "Hold Attack. A lathi line turns a tap aside. The scaffolds go over them.",
+  "Hold Attack, then let go. The heavy comes on the release. A lathi line turns a tap aside.",
   "",
 ];
 
 export function blankInp(): Inp {
   return {
     l: false, r: false, u: false, d: false,
-    jump: false, jumpP: false, atk: false, atkP: false,
+    jump: false, jumpP: false, atk: false, atkP: false, atkR: false,
     dash: false, dashP: false, dodge: false, dodgeP: false,
-    startP: false, pauseP: false,
+    act: false, actP: false, startP: false, pauseP: false,
   };
 }
 
@@ -226,6 +234,7 @@ export function mkEnt(x: number, y: number, kind: string): Ent {
     coy: 0, jbuf: 0, dcd: 0, combo: 1, inv: 0, squash: 0,
     atkId: 1, lastHit: 0, kind, ai: "patrol", pMin: x - 80, pMax: x + 80,
     tel: 0, telMax: 1, open: 0, cool: 0, tag: "", did: false, buf: 0,
+    bufT: 0, hold: 0, queue: 0,
   };
 }
 
@@ -257,14 +266,17 @@ function burst(w: World, x: number, y: number, n: number, color: string, spd: nu
   }
 }
 
-function roof(list: Plat[], x: number, y: number, w: number): void {
-  list.push({ x, y, w, h: VH - y + 30, t: 0, vx: 0 });
+function roof(list: Plat[], x: number, y: number, w: number, k = "brick"): void {
+  list.push({ x, y, w, h: VH - y + 40, t: 0, vx: 0, k });
 }
-function step(list: Plat[], x: number, y: number, w: number): void {
-  list.push({ x, y, w, h: 16, t: 1, vx: 0 });
+function step(list: Plat[], x: number, y: number, w: number, k = "scaffold"): void {
+  list.push({ x, y, w, h: 28, t: 1, vx: 0, k });
 }
-function block(list: Plat[], x: number, y: number, w: number, h: number, t = 0): void {
-  list.push({ x, y, w, h, t, vx: 0 });
+function block(list: Plat[], x: number, y: number, w: number, h: number, t = 0, k = "brick"): void {
+  list.push({ x, y, w, h, t, vx: 0, k });
+}
+function car(list: Plat[], x: number, y: number, w: number, vx = 0, lim = 0): void {
+  list.push({ x, y, w, h: 36, t: vx !== 0 ? 3 : 0, vx, k: "iron", lim });
 }
 
 function foe(x: number, y: number, kind: string, face: number, tag = ""): Ent {
@@ -290,11 +302,14 @@ function foe(x: number, y: number, kind: string, face: number, tag = ""): Ent {
 }
 
 function buildLevel(id: number): Pick<World,
-  "plats" | "foes" | "papers" | "checks" | "hazards" | "exitX" | "width" | "bg" | "rainOn" | "obj" | "caption" | "ally"
+  "plats" | "foes" | "papers" | "gems" | "extras" | "props" | "markX" | "checks" | "hazards" | "exitX" | "width" | "bg" | "rainOn" | "obj" | "caption" | "ally"
 > {
   const plats: Plat[] = [];
   const foes: Ent[] = [];
   const papers: Paper[] = [];
+  const gems: Paper[] = [];
+  const extras: Extra[] = [];
+  const props: Prop[] = [];
   const checks: Flag[] = [];
   const hazards: AABB[] = [];
   let exitX = 4000;
@@ -302,102 +317,141 @@ function buildLevel(id: number): Pick<World,
   let bg = "lahore";
   let rainOn = false;
   let obj = "";
+  let markX = 0;
   const caption = CAPTION[id] ?? "";
   let ally: Ent | null = null;
 
   if (id === 1) {
-    bg = "lahore"; rainOn = true; width = 4600; exitX = 4280;
+    bg = "lahore"; rainOn = true; width = 7600; exitX = 7100;
     obj = "Cross the roofs. Drop the officer. Do not kill.";
-    roof(plats, 0, 448, 620);
-    foes.push(foe(470, 200, "constable", -1, "drill"));
-    roof(plats, 620, 470, 920);
-    block(plats, 1040, 348, 260, 16, 2);
-    foes.push(foe(1120, 400, "shield", -1, "march"));
-    foes.push(foe(1220, 400, "shield", -1, "march"));
-    step(plats, 660, 370, 150);
-    step(plats, 860, 270, 160);
-    foes.push(foe(900, 40, "constable", 1, ""));
-    step(plats, 1080, 240, 220);
-    step(plats, 1340, 340, 160);
-    roof(plats, 1500, 420, 820);
-    foes.push(foe(1860, 200, "officer", -1, ""));
-    checks.push({ x: 1980, y: 420, used: false });
-    roof(plats, 2420, 440, 200);
-    block(plats, 2700, 330, 34, 130, 0);
-    block(plats, 2860, 300, 34, 150, 0);
-    step(plats, 2760, 360, 90);
-    roof(plats, 3000, 430, 360);
-    step(plats, 3120, 320, 130);
-    foes.push(foe(3180, 80, "rifle", -1, ""));
-    hazards.push({ x: 3040, y: 338, w: 150, h: 22 });
-    roof(plats, 3480, 440, 1000);
-    block(plats, 3480, 300, 1000, 16, 2);
-    foes.push(foe(4000, 200, "inspector", -1, "boss"));
-    block(plats, 4380, 300, 28, 160, 4);
-    exitX = 4460;
+    roof(plats, 0, 468, 820);
+    foes.push(foe(520, 200, "constable", -1, "drill"));
+    props.push({ x: 180, y: 448, k: "lantern" }, { x: 640, y: 448, k: "pot" });
+    extras.push({ x: 260, y: 250, frame: "constable_attack", face: 1, sc: 0.55 });
+    step(plats, 880, 380, 200);
+    step(plats, 1160, 280, 220);
+    foes.push(foe(1240, 40, "constable", 1, ""));
+    gems.push({ x: 1280, y: 240, got: false });
+    roof(plats, 900, 508, 1500);
+    block(plats, 1320, 392, 420, 22, 2, "scaffold");
+    foes.push(foe(1460, 420, "shield", -1, "march"));
+    foes.push(foe(1600, 420, "shield", -1, "march"));
+    step(plats, 1280, 250, 460);
+    roof(plats, 2400, 440, 980);
+    foes.push(foe(2680, 180, "officer", -1, ""));
+    foes.push(foe(2920, 180, "constable", 1, ""));
+    checks.push({ x: 3100, y: 440, used: false });
+    props.push({ x: 2500, y: 418, k: "crate" });
+    roof(plats, 3480, 400, 640);
+    step(plats, 3600, 270, 180);
+    gems.push({ x: 3660, y: 230, got: false });
+    extras.push({ x: 3800, y: 220, frame: "officer_idle", face: -1, sc: 0.5 });
+    roof(plats, 4200, 470, 280);
+    block(plats, 4560, 450, 260, 36, 6, "brick");
+    roof(plats, 4900, 430, 320);
+    step(plats, 5080, 300, 160);
+    foes.push(foe(5140, 80, "rifle", -1, ""));
+    hazards.push({ x: 4960, y: 340, w: 140, h: 22 });
+    foes.push(foe(4300, 200, "constable", 1, ""));
+    block(plats, 5400, 250, 40, 200, 0, "brick");
+    block(plats, 5620, 210, 40, 230, 0, "brick");
+    step(plats, 5480, 340, 100);
+    roof(plats, 5800, 460, 1600);
+    block(plats, 5800, 300, 1500, 22, 2, "brick");
+    foes.push(foe(6200, 200, "shield", -1, ""));
+    foes.push(foe(6600, 200, "inspector", -1, "boss"));
+    block(plats, 7000, 280, 28, 200, 4, "iron");
+    props.push({ x: 6000, y: 438, k: "lantern" });
   } else if (id === 2) {
-    bg = "station"; rainOn = true; width = 5200; exitX = 4860;
+    bg = "station"; rainOn = true; width = 8200; exitX = 7600;
     obj = "Stay with Durga. Then take the rifleman on the last car.";
-    roof(plats, 0, 450, 1680);
-    ally = mkEnt(80, 300, "durga");
-    foes.push(foe(380, 200, "constable", 1, "watch"));
-    foes.push(foe(760, 200, "constable", -1, "watch"));
-    foes.push(foe(1180, 200, "constable", 1, "watch"));
-    checks.push({ x: 1560, y: 450, used: false });
-    block(plats, 1780, 400, 540, 28, 0);
-    block(plats, 2420, 400, 500, 28, 0);
-    block(plats, 3020, 400, 500, 28, 0);
-    step(plats, 1680, 490, 100);
-    step(plats, 2320, 470, 100);
-    step(plats, 2920, 470, 100);
-    hazards.push({ x: 3180, y: 300, w: 160, h: 36 });
-    roof(plats, 3480, 500, 1500);
-    plats.push({ x: 3640, y: 400, w: 560, h: 40, t: 3, vx: 78 });
-    plats.push({ x: 3640, y: 292, w: 560, h: 16, t: 5, vx: 78 });
-    foes.push(foe(3940, 200, "rifle", -1, "boss"));
-    block(plats, 4480, 300, 26, 120, 4);
-    step(plats, 4300, 460, 120);
+    roof(plats, 0, 470, 2200, "stone");
+    ally = mkEnt(90, 300, "durga");
+    foes.push(foe(460, 200, "constable", 1, "watch"));
+    foes.push(foe(1080, 200, "officer", -1, "watch"));
+    foes.push(foe(1680, 200, "rifle", 1, "watch"));
+    step(plats, 700, 330, 200, "stone");
+    gems.push({ x: 760, y: 290, got: false });
+    checks.push({ x: 1960, y: 470, used: false });
+    props.push({ x: 240, y: 448, k: "bench" }, { x: 1500, y: 448, k: "crate" });
+    extras.push({ x: 300, y: 280, frame: "officer_idle", face: 1, sc: 0.5 });
+    car(plats, 2380, 400, 640);
+    car(plats, 3160, 360, 560);
+    hazards.push({ x: 3320, y: 250, w: 180, h: 28 });
+    car(plats, 3860, 420, 620, 64, 4480);
+    plats.push({ x: 3860, y: 300, w: 620, h: 18, t: 5, vx: 64, k: "iron", lim: 4480 });
+    step(plats, 2200, 500, 180, "stone");
+    step(plats, 3040, 490, 120, "stone");
+    foes.push(foe(4100, 160, "constable", -1, ""));
+    car(plats, 4700, 390, 520);
+    roof(plats, 5300, 520, 2600, "stone");
+    car(plats, 5600, 400, 700, 52, 6600);
+    foes.push(foe(6000, 160, "rifle", -1, "boss"));
+    foes.push(foe(5480, 250, "officer", 1, ""));
+    block(plats, 7300, 300, 28, 220, 4, "iron");
+    gems.push({ x: 6800, y: 470, got: false });
   } else if (id === 3) {
-    bg = "press"; rainOn = false; width = 3000; exitX = 2680;
+    bg = "press"; rainOn = false; width = 5600; exitX = 5200;
     obj = "Three bundles. Outrun the fire.";
-    roof(plats, 0, 470, 2800);
-    step(plats, 180, 390, 200);
-    step(plats, 520, 310, 180);
-    roof(plats, 240, 390, 420);
-    roof(plats, 860, 360, 460);
-    roof(plats, 1280, 270, 520);
-    roof(plats, 1760, 390, 400);
-    papers.push({ x: 320, y: 430, got: false }, { x: 1040, y: 320, got: false }, { x: 1500, y: 230, got: false });
-    foes.push(foe(460, 200, "constable", -1, ""));
-    foes.push(foe(1000, 80, "shield", -1, ""));
-    foes.push(foe(1160, 80, "officer", -1, ""));
-    foes.push(foe(1600, 40, "constable", 1, ""));
-    foes.push(foe(2360, 200, "constable", -1, "wave"));
-    foes.push(foe(2480, 200, "officer", -1, "wave"));
-    foes.push(foe(2580, 200, "constable", -1, "wave"));
-    checks.push({ x: 700, y: 470, used: false }, { x: 1900, y: 390, used: false });
-    block(plats, 2720, 330, 24, 160, 4);
+    roof(plats, 0, 490, 900, "wood");
+    step(plats, 220, 390, 220, "wood");
+    roof(plats, 480, 320, 360, "wood");
+    papers.push({ x: 280, y: 450, got: false });
+    foes.push(foe(620, 80, "constable", -1, ""));
+    props.push({ x: 80, y: 468, k: "press" }, { x: 700, y: 298, k: "crate" });
+    roof(plats, 980, 470, 700, "wood");
+    checks.push({ x: 1100, y: 470, used: false });
+    step(plats, 1200, 350, 200, "wood");
+    roof(plats, 1500, 260, 420, "wood");
+    papers.push({ x: 1680, y: 220, got: false });
+    foes.push(foe(1580, 40, "shield", -1, ""));
+    foes.push(foe(1760, 40, "officer", 1, ""));
+    gems.push({ x: 1860, y: 210, got: false });
+    block(plats, 2100, 460, 280, 36, 6, "wood");
+    roof(plats, 2460, 420, 520, "wood");
+    step(plats, 2700, 300, 180, "wood");
+    foes.push(foe(2780, 60, "rifle", -1, ""));
+    papers.push({ x: 2920, y: 380, got: false });
+    roof(plats, 3100, 480, 900, "wood");
+    checks.push({ x: 3400, y: 480, used: false });
+    block(plats, 3600, 450, 240, 36, 8, "wood");
+    roof(plats, 4000, 400, 480, "wood");
+    foes.push(foe(4200, 120, "constable", -1, "wave"));
+    foes.push(foe(4380, 120, "shield", -1, "wave"));
+    foes.push(foe(4560, 80, "rifle", -1, "wave"));
+    roof(plats, 4600, 490, 800, "wood");
+    block(plats, 5120, 330, 26, 180, 4, "iron");
+    extras.push({ x: 200, y: 200, frame: "officer_idle", face: 1, sc: 0.45 });
   } else if (id === 4) {
-    bg = "assembly"; rainOn = false; width = 3400; exitX = 3200;
+    bg = "assembly"; rainOn = false; width = 6200; exitX = 5800; markX = 5000;
     obj = "Slip the hall. Throw eight leaflets. Then stand.";
-    roof(plats, 0, 450, 1900);
-    step(plats, 280, 340, 160);
-    roof(plats, 420, 330, 980);
-    foes.push(foe(520, 200, "officer", -1, "watch"));
-    foes.push(foe(980, 200, "rifle", -1, "watch"));
-    foes.push(foe(860, 200, "officer", 1, "watch"));
-    foes.push(foe(1400, 200, "constable", -1, "watch"));
-    checks.push({ x: 1720, y: 450, used: false });
-    roof(plats, 2000, 440, 1400);
-    foes.push(foe(2140, 200, "officer", -1, "wave"));
-    foes.push(foe(2300, 200, "constable", -1, "wave"));
+    roof(plats, 0, 480, 2400, "marble");
+    roof(plats, 360, 310, 1100, "marble");
+    foes.push(foe(520, 160, "officer", -1, "watch"));
+    foes.push(foe(980, 160, "rifle", 1, "watch"));
+    foes.push(foe(1500, 220, "constable", -1, "watch"));
+    foes.push(foe(1900, 220, "officer", 1, "watch"));
+    checks.push({ x: 2100, y: 480, used: false });
+    props.push({ x: 160, y: 458, k: "bench" }, { x: 900, y: 288, k: "lamp" });
+    gems.push({ x: 700, y: 270, got: false });
+    step(plats, 2500, 400, 180, "marble");
+    roof(plats, 2760, 470, 600, "marble");
+    hazards.push({ x: 2860, y: 360, w: 160, h: 24 });
+    roof(plats, 3500, 450, 2400, "marble");
+    roof(plats, 3800, 290, 700, "marble");
+    foes.push(foe(4000, 140, "officer", -1, "wave"));
+    foes.push(foe(4300, 140, "shield", -1, "wave"));
+    extras.push({ x: 420, y: 180, frame: "officer_idle", face: 1, sc: 0.42 });
   } else {
-    bg = "cell"; rainOn = false; width = VW; exitX = 99999;
+    bg = "cell"; rainOn = false; width = 1280; exitX = 99999; markX = 0;
     obj = "Read the warders. Refuse the bread.";
-    roof(plats, 0, 470, VW);
-    step(plats, 180, 390, 150);
+    roof(plats, 0, 480, 1280, "cell");
+    step(plats, 160, 390, 180, "cell");
+    step(plats, 200, 300, 120, "cell");
+    props.push({ x: 40, y: 250, k: "bars" }, { x: 980, y: 458, k: "bucket" });
+    gems.push({ x: 240, y: 250, got: false });
   }
-  return { plats, foes, papers, checks, hazards, exitX, width, bg, rainOn, obj, caption, ally };
+  return { plats, foes, papers, gems, extras, props, markX, checks, hazards, exitX, width, bg, rainOn, obj, caption, ally };
 }
 
 function takeSave(w: World): Save {
@@ -531,7 +585,8 @@ function hurt(w: World, e: Ent, dmg: number, dir: number, readable: boolean): vo
   e.st = e.hp <= 0 ? "down" : "hit";
   e.stT = 0;
   e.squash = 1;
-  w.shakeT = 0.18;
+  if (w.player !== e) w.player.squash = 0.85;
+  w.shakeT = 0.2;
   w.shake = 7;
   burst(w, e.x + e.w * 0.5, e.y + 30, 8, "#e7c98a", 240);
   if (e.kind === "player") {
@@ -668,23 +723,28 @@ function separate(p: Ent, foes: Ent[]): void {
 }
 
 function updatePlayer(w: World, p: Ent, inp: Inp, dt: number): void {
-  const press = (inp.atkP || p.buf === 1) && w.hitstop <= 0;
-  const dodgePress = (inp.dodgeP || p.buf === 2) && w.hitstop <= 0;
-  if (w.hitstop > 0) {
-    if (inp.atkP) p.buf = 1;
-    else if (inp.dodgeP) p.buf = 2;
-  } else p.buf = 0;
-  if (inp.jumpP) p.jbuf = 0.12;
-  if (p.onG) p.coy = 0.1;
+  if (inp.atkP) { p.buf = 1; p.bufT = 0.16; }
+  if (inp.dodgeP) { p.buf = 2; p.bufT = 0.16; }
+  if (w.hitstop <= 0 && p.bufT > 0) p.bufT -= dt;
+  if (p.bufT <= 0) p.buf = 0;
+  const press = p.buf === 1 && w.hitstop <= 0;
+  const dodgePress = p.buf === 2 && w.hitstop <= 0;
+  if (inp.jumpP) p.jbuf = 0.14;
+  if (p.onG) p.coy = 0.12;
   else p.coy -= dt;
   p.jbuf -= dt;
   p.dcd -= dt;
   p.cool -= dt;
   p.inv -= dt;
   p.open -= dt;
-  p.squash = Math.max(0, p.squash - dt * 5);
+  p.squash = Math.max(0, p.squash - dt * 6);
   if (w.hitstop <= 0) p.stT += dt;
-  const speed = 360 * weary(w);
+  const speed = 440 * weary(w);
+  if (inp.atk) p.hold += dt;
+  else if (p.hold > 0) {
+    if (p.hold >= 0.14 && w.heavyOn) p.queue = 1;
+    p.hold = 0;
+  }
 
   if (p.st === "down") return;
   if (p.st === "hit") {
@@ -695,10 +755,12 @@ function updatePlayer(w: World, p: Ent, inp: Inp, dt: number): void {
   if (!busy && dodgePress && p.cool <= 0 && p.st !== "dodge") {
     p.st = "dodge";
     p.stT = 0;
-    p.inv = 0.2;
-    p.cool = 0.42;
-    p.vx = p.face * 460;
-    p.vy *= 0.4;
+    p.inv = 0.18;
+    p.cool = 0.36;
+    p.vx = p.face * 520;
+    p.vy *= 0.35;
+    p.buf = 0;
+    p.queue = 0;
     if (w.lesson === 3) w.lesson = 4;
     burst(w, p.x, p.y + p.h, 5, "#cbbfa6", 120);
   }
@@ -717,28 +779,32 @@ function updatePlayer(w: World, p: Ent, inp: Inp, dt: number): void {
     p.stT = 0;
     p.atkId += 1;
     p.did = false;
+    p.buf = 0;
     p.vx = p.face * 280;
-  } else if (!busy && press && p.st === "attack" && p.combo < 3 && p.stT > 0.08 && p.stT < 0.3) {
+  } else if (!busy && press && p.st === "attack" && p.combo < 3 && p.stT > 0.05 && p.stT < 0.34) {
     p.combo += 1;
     p.stT = 0;
     p.atkId += 1;
     p.did = false;
+    p.buf = 0;
     p.vx += p.face * 80;
-  } else if (!busy && press && (p.st === "idle" || p.st === "run" || p.st === "jump")) {
+  } else if (!busy && press && (p.st === "idle" || p.st === "run" || p.st === "jump" || p.st === "slide")) {
     p.st = "attack";
     p.combo = 1;
     p.stT = 0;
     p.atkId += 1;
     p.did = false;
-    p.vx += p.face * 60;
+    p.buf = 0;
+    p.vx += p.face * 80;
     if (w.lesson < 3) w.lesson = 3;
   }
-  if (p.st === "attack" && !p.did && w.heavyOn && inp.atk && p.combo === 1 && p.stT > 0.16) {
+  if (p.queue === 1 && w.heavyOn && p.st !== "heavy" && p.st !== "dodge" && p.st !== "hit" && (p.st !== "attack" || (p.did && p.stT > 0.06))) {
     p.st = "heavy";
     p.stT = 0;
     p.atkId += 1;
     p.did = false;
-    p.vx += p.face * 40;
+    p.queue = 0;
+    p.vx += p.face * 70;
     if (w.lesson === 4) w.lesson = 5;
   }
 
@@ -749,25 +815,28 @@ function updatePlayer(w: World, p: Ent, inp: Inp, dt: number): void {
       p.face = -p.onW;
       p.vx = -p.onW * 380;
       p.vy = -700;
-    } else p.vy = -840 * Math.sqrt(weary(w));
+    } else p.vy = -760 * Math.sqrt(weary(w));
     p.onG = false;
     if (p.st !== "attack" && p.st !== "heavy") p.st = "jump";
     if (w.lesson < 2) w.lesson = 2;
   }
   if (p.st !== "dash") {
-    p.vy += 2500 * dt;
-    if (!inp.jump && p.vy < -220) p.vy += 2200 * dt;
-    if (p.vy > 1500) p.vy = 1500;
+    const rising = p.vy < 0;
+    p.vy += (rising ? 1900 : 4600) * dt;
+    if (!inp.jump && p.vy < -160) p.vy = -160;
+    if (p.vy > 1680) p.vy = 1680;
   }
 
-  if (p.st !== "dash" && p.st !== "slide" && p.st !== "dodge" && p.st !== "hit" && p.st !== "heavy") {
+  if (p.st !== "dash" && p.st !== "slide" && p.st !== "dodge" && p.st !== "hit") {
     const wish = (inp.r ? 1 : 0) - (inp.l ? 1 : 0);
-    if (wish !== 0 && p.st !== "attack") {
-      p.face = wish;
-      p.vx += wish * 4200 * dt;
+    const attacking = p.st === "attack" || p.st === "heavy";
+    if (wish !== 0) {
+      if (!attacking) p.face = wish;
+      const accel = (p.onG ? 11000 : 6400) * (attacking ? 0.45 : 1);
+      p.vx += wish * accel * dt;
       p.vx = clamp(p.vx, -speed, speed);
-    } else if (p.st !== "attack") {
-      const fr = p.onG ? 3200 : 800;
+    } else if (!attacking) {
+      const fr = p.onG ? 9000 : 2200;
       if (p.vx > 0) p.vx = Math.max(0, p.vx - fr * dt);
       else p.vx = Math.min(0, p.vx + fr * dt);
     }
@@ -777,7 +846,7 @@ function updatePlayer(w: World, p: Ent, inp: Inp, dt: number): void {
   if (p.st === "dodge" && p.stT > 0.32) p.st = p.onG ? "idle" : "jump";
   if (p.st === "attack") {
     const dur = p.combo >= 3 ? 0.34 : 0.2;
-    if (!p.did && p.stT > 0.04 && p.stT < 0.14) {
+    if (!p.did && p.stT > 0.01 && p.stT < 0.12) {
       p.did = true;
       swing(w, p, false);
     }
@@ -823,7 +892,7 @@ function sight(w: World, e: Ent, p: Ent): boolean {
   const range = p.h < 60 ? 108 : e.kind === "rifle" ? 260 : 196;
   if (Math.abs(dx) > range) return false;
   if (Math.abs((p.y + p.h) - (e.y + e.h)) > 80) return false;
-  if (w.level === 2 && p.x < 1650 && w.ally && w.ally.hp > 0) {
+  if (w.level === 2 && p.x < 2100 && w.ally && w.ally.hp > 0) {
     const close = Math.abs(p.x - w.ally.x) < 88 && Math.abs(p.y - w.ally.y) < 48;
     const calm = p.st !== "attack" && p.st !== "heavy" && p.st !== "dash";
     if (close && calm) return false;
@@ -1093,7 +1162,24 @@ function updatePlay(w: World, inp: Inp, dt: number): void {
     const pl = w.plats[i];
     if (!pl || (pl.t !== 3 && pl.t !== 5)) continue;
     pl.x += pl.vx * real;
-    if (pl.x > 3960) pl.vx = 0;
+    if (pl.lim && pl.x > pl.lim) pl.vx = 0;
+  }
+  const pStand = w.player;
+  for (let i = 0; i < w.plats.length; i++) {
+    const pl = w.plats[i];
+    if (!pl || (pl.t !== 6 && pl.t !== 8)) continue;
+    const feet = pStand.y + pStand.h;
+    const on = pStand.onG && feet > pl.y - 8 && feet < pl.y + 14 && pStand.x + pStand.w > pl.x + 8 && pStand.x < pl.x + pl.w - 8;
+    const hot = pl.t === 8 && w.fireX > pl.x - 30;
+    if ((on || hot) && pl.vx >= 0) pl.vx = -0.02;
+    if (pl.vx < 0) {
+      pl.vx -= real;
+      if (pl.vx < -0.32) {
+        const before = pl.y;
+        pl.y += 240 * real;
+        if (on) pStand.y += pl.y - before;
+      }
+    }
   }
 
   const foeDt = w.hitstop > 0 ? 0 : w.slomo > 0 ? real * 0.4 : real;
@@ -1130,7 +1216,7 @@ function updatePlay(w: World, inp: Inp, dt: number): void {
   if (w.lesson === 3 && p.x > 1100) w.lesson = 4;
   if (w.lesson === 4 && p.x > 1860) w.lesson = 5;
   w.heavyOn = w.level > 1 || w.lesson >= 4;
-  w.hint = w.level === 1 ? (HINTS[w.lesson] ?? "") : w.level === 2 && p.x < 1650 ? "Stay at her shoulder. Hold Down to shorten a cone." : "";
+  w.hint = w.level === 1 ? (HINTS[w.lesson] ?? "") : w.level === 2 && p.x < 2100 ? "Stay at her shoulder. Hold Down to shorten a cone. Flick the stick to dash." : "";
 
   for (let i = 0; i < w.papers.length; i++) {
     const pap = w.papers[i];
@@ -1138,6 +1224,16 @@ function updatePlay(w: World, inp: Inp, dt: number): void {
     if (Math.abs(p.x - pap.x) < 36 && Math.abs(p.y + p.h - pap.y) < 80) {
       pap.got = true;
       burst(w, pap.x, pap.y, 8, "#f2e2a0", 160);
+    }
+  }
+  for (let i = 0; i < w.gems.length; i++) {
+    const gem = w.gems[i];
+    if (!gem || gem.got) continue;
+    if (Math.abs(p.x - gem.x) < 34 && Math.abs(p.y + p.h - gem.y) < 70) {
+      gem.got = true;
+      w.banner = "A HIDDEN COPY";
+      w.bannerT = 0.7;
+      burst(w, gem.x, gem.y, 8, "#f2e2a0", 140);
     }
   }
   for (let i = 0; i < w.checks.length; i++) {
@@ -1176,19 +1272,19 @@ function updatePlay(w: World, inp: Inp, dt: number): void {
   }
   if (w.level === 1) {
     w.obj = w.bossDown ? "The officer is down. Take the far roof." : "Drop the cordon's officer. Outrun the lanes behind you.";
-    if (p.x > 1900 && p.x < 3400) w.camMin = Math.min(3320, w.camMin + 115 * real);
+    if (p.x > 4000 && p.x < 5600) w.camMin = Math.min(5300, w.camMin + 150 * real);
   }
   if (w.level === 2) {
     const withHer = w.ally && w.ally.hp > 0 && Math.abs(w.ally.x - p.x) < 300;
     w.obj = w.bossDown ? "Off the train. Keep her with you." : withHer ? "The last carriage. Close on the rifleman." : "Do not lose Durga between the cars.";
   }
   if (w.level === 4) {
-    if (p.x > 2050) w.gallery = true;
+    if (p.x > 3480) w.gallery = true;
     if (w.gallery && w.wave === 0) {
       w.wave = 1;
       for (const e of w.foes) if (e.tag === "wave") wake(e);
     }
-    if (w.gallery && w.leaflets < 8 && inp.atkP && w.leafCd <= 0) {
+    if (w.gallery && w.leaflets < 8 && (inp.atkP || inp.actP) && w.leafCd <= 0) {
       w.leaflets += 1;
       w.leafCd = 0.32;
       burst(w, p.x + p.face * 46, p.y + 24, 8, "#f4e6c0", 200);
@@ -1205,7 +1301,8 @@ function updatePlay(w: World, inp: Inp, dt: number): void {
       }
     }
     w.obj = w.leaflets >= 8 ? "Stand in the circle. Let them take you." : "Leaflets " + String(Math.min(8, w.leaflets)) + "/8. Alarm " + String(Math.floor(w.alarm));
-    if (w.leaflets >= 8 && Math.abs(p.x - 2920) < 56 && Math.abs(p.vx) < 40 && p.st !== "attack" && p.st !== "heavy" && p.st !== "dash") {
+    const mark = w.markX || 2920;
+    if (w.leaflets >= 8 && Math.abs(p.x - mark) < 70 && Math.abs(p.vx) < 50 && p.st !== "attack" && p.st !== "heavy" && p.st !== "dash") {
       w.stand += real;
       if (w.stand > 1.45) {
         w.talk = TALKS.l4end ?? [];
@@ -1326,12 +1423,17 @@ export function applyLevel(w: World, id: number, talkKey: string): void {
   w.plats = L.plats;
   w.foes = L.foes;
   w.papers = L.papers;
+  w.gems = L.gems;
+  w.extras = L.extras;
+  w.props = L.props;
+  w.markX = L.markX;
   w.checks = L.checks;
   w.hazards = L.hazards;
   w.exitX = L.exitX;
   w.width = L.width;
   w.bg = L.bg;
   w.rainOn = L.rainOn;
+  if (!L.rainOn) w.rain = [];
   w.obj = L.obj;
   w.caption = L.caption;
   w.ally = L.ally;
@@ -1398,7 +1500,8 @@ export function fresh(): World {
     mode: "title", level: 0, unlocked: 1, t: 0, time: 0, camX: 0,
     shake: 0, shakeT: 0, hitstop: 0, slomo: 0,
     player: mkEnt(80, 300, "player"), ally: null, foes: [], plats: [],
-    parts: [], rain: seedRain(48), papers: [], checks: [], hazards: [],
+    parts: [], rain: seedRain(48), papers: [], gems: [], extras: [], props: [], checks: [], hazards: [],
+    markX: 0,
     bolts: [], ghosts: [],
     exitX: 1000, fireX: -200, leaflets: 0, days: 0,
     talk: [], talkI: 0, talkShown: 0,
@@ -1426,6 +1529,9 @@ export function respawn(w: World): void {
   p.inv = 1;
   p.h = 78;
   p.buf = 0;
+  p.bufT = 0;
+  p.hold = 0;
+  p.queue = 0;
   if (w.ally) {
     w.ally.x = p.x - 50;
     w.ally.y = p.y;
@@ -1441,7 +1547,7 @@ export function respawn(w: World): void {
 }
 
 export function grade(w: World): string {
-  const par = [0, 120, 130, 110, 120, 90][w.level] ?? 120;
+  const par = [0, 200, 210, 180, 190, 110][w.level] ?? 180;
   let s = 100 - w.hitsTaken * 7 + Math.min(12, w.perfects) * 3;
   if (w.broke) s -= 28;
   if (w.alarm >= 100) s -= 12;
@@ -1454,7 +1560,8 @@ export function grade(w: World): string {
 
 export function finishLevel(w: World): void {
   w.rank = grade(w);
-  w.score = Math.max(0, Math.round(1000 - w.hitsTaken * 40 + w.perfects * 25 + w.disarmed * 15 - w.time));
+  const found = w.gems.filter((g) => g.got).length;
+  w.score = Math.max(0, Math.round(1000 - w.hitsTaken * 40 + w.perfects * 25 + w.disarmed * 15 + found * 80 - w.time));
   if (w.unlocked < w.level + 1) w.unlocked = Math.min(5, w.level + 1);
   w.mode = "done";
   w.banner = w.rank;

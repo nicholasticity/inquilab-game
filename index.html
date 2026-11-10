@@ -18,20 +18,17 @@
     <div id="frame">
       <canvas id="game" width="960" height="540" aria-label="Inquilab"></canvas>
       <div id="touch">
-        <div class="dpad">
-          <span></span>
-          <button type="button" data-hold="u" aria-label="Up">↑</button>
-          <span></span>
-          <button type="button" data-hold="l" aria-label="Left">←</button>
-          <button type="button" data-hold="d" aria-label="Down">↓</button>
-          <button type="button" data-hold="r" aria-label="Right">→</button>
+        <div id="stick" hidden>
+          <div id="stick-base"></div>
+          <div id="stick-knob"></div>
         </div>
         <div class="actions">
-          <button type="button" data-hold="dodge">Dodge</button>
-          <button type="button" data-hold="dash">Dash</button>
-          <button type="button" data-hold="atk">Attack</button>
-          <button type="button" data-hold="jump" class="jump">Jump</button>
+          <button type="button" data-hold="act" id="btn-act" class="act-dash">Dash</button>
+          <button type="button" data-hold="jump" class="act-jump">Jump</button>
+          <button type="button" data-hold="dodge" class="act-dodge">Dodge</button>
+          <button type="button" data-hold="atk" class="act-atk">Attack</button>
         </div>
+        <p id="turn-hint">Turn sideways</p>
         <button type="button" id="btn-pause" aria-label="Pause">II</button>
         <button type="button" id="btn-continue">Continue</button>
       </div>

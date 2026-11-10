@@ -1,13 +1,27 @@
-/** Logical painting paths. The files live in src/art and Vite content-hashes them. */
+/**
+ * Logical painting paths. The files live in src/art and Vite content-hashes them.
+ * Chapter scenes are a far layer, a mid layer, and one tileable ground strip.
+ * The title waits on title.webp only. Each chapter's three paintings load with that chapter.
+ */
+
 export const BG_PATHS: Record<string, string> = {
   title: "assets/bg/title.webp",
-  lahore: "assets/bg/lahore.webp",
-  station: "assets/bg/station.webp",
-  press: "assets/bg/press.webp",
-  assembly: "assets/bg/assembly.webp",
-  cell: "assets/bg/cell.webp",
   finale: "assets/bg/finale.webp",
 };
+
+export const LAYER_PATHS: Record<number, { far: string; mid: string; ground: string }> = {
+  1: { far: "assets/bg/lahore_far.webp", mid: "assets/bg/lahore_mid.webp", ground: "assets/ground/lahore.webp" },
+  2: { far: "assets/bg/station_far.webp", mid: "assets/bg/station_mid.webp", ground: "assets/ground/station.webp" },
+  3: { far: "assets/bg/press_far.webp", mid: "assets/bg/press_mid.webp", ground: "assets/ground/press.webp" },
+  4: { far: "assets/bg/assembly_far.webp", mid: "assets/bg/assembly_mid.webp", ground: "assets/ground/assembly.webp" },
+  5: { far: "assets/bg/cell_far.webp", mid: "assets/bg/cell_mid.webp", ground: "assets/ground/cell.webp" },
+};
+
+function layerPaths(level: number): string[] {
+  const set = LAYER_PATHS[level];
+  if (!set) return [];
+  return [set.far, set.mid, set.ground];
+}
 
 export const PORTRAIT_PATHS: Record<string, string> = {
   bhagat: "assets/portraits/bhagat.webp",
@@ -37,8 +51,11 @@ export const FRAME_PATHS: Record<string, string> = {
 };
 
 export function allAssetPaths(): string[] {
+  const layers: string[] = [];
+  for (const level of [1, 2, 3, 4, 5]) layers.push(...layerPaths(level));
   return [
     ...Object.values(BG_PATHS),
+    ...layers,
     ...Object.values(PORTRAIT_PATHS),
     ...Object.values(FRAME_PATHS),
   ];
@@ -71,22 +88,22 @@ export function titlePaths(): string[] {
 /** Painted files a chapter draws. Later chapters reuse the chapter 1 frames. */
 export function levelPaths(level: number): string[] {
   if (level === 1) {
-    return [BG_PATHS.lahore ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.sukhdev ?? "", ...frames(COMBAT_FRAMES)];
+    return [...layerPaths(1), PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.sukhdev ?? "", ...frames(COMBAT_FRAMES)];
   }
   if (level === 2) {
     return [
-      BG_PATHS.station ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.durga ?? "",
+      ...layerPaths(2), PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.durga ?? "",
       ...frames(COMBAT_FRAMES), FRAME_PATHS.durga_idle ?? "", FRAME_PATHS.durga_walk ?? "",
     ];
   }
   if (level === 3) {
-    return [BG_PATHS.press ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.azad ?? "", ...frames(COMBAT_FRAMES)];
+    return [...layerPaths(3), PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.azad ?? "", ...frames(COMBAT_FRAMES)];
   }
   if (level === 4) {
-    return [BG_PATHS.assembly ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.dutt ?? "", ...frames(COMBAT_FRAMES)];
+    return [...layerPaths(4), PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.dutt ?? "", ...frames(COMBAT_FRAMES)];
   }
   if (level === 5) {
-    return [BG_PATHS.cell ?? "", PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.jatin ?? "", ...frames(PLAYER_FRAMES)];
+    return [...layerPaths(5), PORTRAIT_PATHS.bhagat ?? "", PORTRAIT_PATHS.jatin ?? "", ...frames(PLAYER_FRAMES)];
   }
   return [];
 }
