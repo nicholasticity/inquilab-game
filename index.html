@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="description" content="Inquilab — a non-lethal action chronicle of Bhagat Singh, 1928–1931." />
+  <title>Inquilab</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <div id="loading">
+    <p class="loading-title">INQUILAB</p>
+    <p id="loading-msg">Loading the paintings…</p>
+  </div>
+  <div id="stage">
+    <div id="frame">
+      <canvas id="game" width="960" height="540" aria-label="Inquilab"></canvas>
+      <div id="touch">
+        <div class="dpad">
+          <span></span>
+          <button type="button" data-hold="u" aria-label="Up">↑</button>
+          <span></span>
+          <button type="button" data-hold="l" aria-label="Left">←</button>
+          <button type="button" data-hold="d" aria-label="Down">↓</button>
+          <button type="button" data-hold="r" aria-label="Right">→</button>
+        </div>
+        <div class="actions">
+          <button type="button" data-hold="dodge">Dodge</button>
+          <button type="button" data-hold="dash">Dash</button>
+          <button type="button" data-hold="atk">Attack</button>
+          <button type="button" data-hold="jump" class="jump">Jump</button>
+        </div>
+        <button type="button" id="btn-pause" aria-label="Pause">II</button>
+        <button type="button" id="btn-continue">Continue</button>
+      </div>
+      <div id="title-ui">
+        <button type="button" id="btn-begin">Begin</button>
+        <button type="button" id="btn-chapters">Chapters</button>
+      </div>
+      <div id="chapter-ui" hidden></div>
+      <div id="pause-ui" hidden>
+        <p class="banner">PAUSED</p>
+        <button type="button" id="btn-resume">Resume</button>
+        <button type="button" id="btn-retry">Retry checkpoint</button>
+        <button type="button" id="btn-level-select">Level select</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
