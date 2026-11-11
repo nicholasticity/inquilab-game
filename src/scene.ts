@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import {
   BELL,
+  BICYCLE,
   CRATE,
   GATE,
   GRATE,
@@ -8,19 +9,21 @@ import {
   LEAF,
   MAP_H,
   MAP_W,
+  OFFICER,
   PLATE,
   SPAWN,
   TILE,
+  TONGA,
+  WELL,
   blockedTile,
   validateMap,
 } from "./map";
-import { astar, nearestOpen } from "./path";
 import { paintCanvas, Pix } from "./pix";
 import { Sfx, sfxEver, sfxLog } from "./sfx";
-import { makeArrow, makeBox, makeDust, makeHeart, makeLeaflet, makeMark, makeSpark, wrapBox } from "./ui";
+import { makeArrow, makeBox, makeDust, makeHeart, makeItemCard, makeKnob, makeLeaflet, makeMark, makeSpark, makeStickBase, wrapBox } from "./ui";
 
 const WIRE =
-  "WIRE: Courtyard's watched. Switch spies — Kite's pebble, Veil's disguise, Key's picks. Get the leaflet and get out.";
+  "WIRE: Thumbstick moves. Tap a portrait to switch — Kite's pebble, Veil's disguise, Key's picks. Get the leaflet and get out.";
 
 const HUD = 40;
 const VIEW_W = 640;
@@ -29,15 +32,16 @@ const SPEED = 78;
 const PATROL = 52;
 const CHASE = 68;
 const FRAMES = 9;
+const STICK_X = 62;
+const STICK_Y = 304;
+const STICK_R = 26;
+const STICK_DEAD = 0.2;
 
 type Spy = "kite" | "veil" | "key";
 type Facing = "up" | "down" | "left" | "right";
 type Kind = Spy | "veil2" | "guard";
 type GState = "patrol" | "sus" | "chase" | "stun" | "bell";
 type Then = "bell" | "guard" | "gate" | "leaf" | "push";
-type Order =
-  | { kind: "path"; pts: { x: number; y: number }[]; i: number; then?: Then; psx?: number; psy?: number }
-  | { kind: "steer"; x: number; y: number };
 
 function upload(scene: Phaser.Scene, key: string, pix: Pix): void {
   const canvas = document.createElement("canvas");
@@ -81,7 +85,6 @@ export class Yard extends Phaser.Scene {
   private flicker = 0;
   private flickerT = 0;
   private lock: { kind: string; t: number; dur: number; on?: boolean; target?: "bell" | "guard"; sparked?: number } | null = null;
-  private order: Order | null = null;
   private stepAcc = 0;
   private walkFrame = 0;
   private moved = 0;
@@ -104,7 +107,10 @@ export class Yard extends Phaser.Scene {
   private knelt = false;
   private freezeUntil = 0;
   private shakes: number[] = [];
-  private pid = -1;
+  private stickId = -1;
+  private tapId = -1;
+  private stickDx = 0;
+  private stickDy = 0;
   private downX = 0;
   private downY = 0;
   private dragged = false;
@@ -136,7 +142,10 @@ export class Yard extends Phaser.Scene {
   private itemBox!: Phaser.GameObjects.Image;
   private arrow!: Phaser.GameObjects.Image;
   private hint!: Phaser.GameObjects.Image;
-  private glow!: Phaser.GameObjects.Graphics;
+  private rune!: Phaser.GameObjects.Image;
+  private dim!: Phaser.GameObjects.Image;
+  private itemIcon!: Phaser.GameObjects.Image;
+  private stickKnob!: Phaser.GameObjects.Image;
   private heartsImg: Phaser.GameObjects.Image[] = [];
   private ports: { id: Spy; img: Phaser.GameObjects.Image }[] = [];
   private sel!: Phaser.GameObjects.Graphics;
@@ -159,11 +168,20 @@ export class Yard extends Phaser.Scene {
     image("sack");
     image("awning");
     image("laundry");
-    image("rug");
-    image("flower", "prop-flower");
     image("shadow");
     image("pebble");
     image("plate");
+    image("rune");
+    image("charpoy");
+    image("bicycle");
+    image("tonga");
+    image("kettle");
+    image("kulhad");
+    image("tulsi");
+    image("pillar");
+    image("officer");
+    image("laundry2", "laundry-s");
+    image("laundry3", "laundry-g");
     for (const id of ["kite", "veil", "key"] as const) image(`port-${id}`, `port-${id}`);
     for (const kind of ["kite", "veil", "veil2", "key", "guard"]) {
       this.load.spritesheet(kind, `assets/lpc/${kind}.png`, { frameWidth: 64, frameHeight: 64 });
@@ -182,6 +200,9 @@ export class Yard extends Phaser.Scene {
     upload(this, "bang", makeMark("!"));
     upload(this, "arrow", makeArrow());
     upload(this, "leaflet", makeLeaflet());
+    upload(this, "stick", makeStickBase());
+    upload(this, "knob", makeKnob());
+    upload(this, "itemcard", makeItemCard());
     const bar = new Pix(VIEW_W, HUD);
     bar.fill(0);
     bar.fillRect(0, HUD - 2, VIEW_W, 2, 13);
@@ -190,9 +211,8 @@ export class Yard extends Phaser.Scene {
     px.force(0, 0, 31);
     upload(this, "px", px);
 
-    const lines = wrapBox(WIRE, 240);
+    const lines = wrapBox(WIRE, 220);
     upload(this, "wirebox", makeBox(lines));
-    upload(this, "itembox", makeBox(wrapBox("Coded leaflet", 200), "ITEM GET"));
 
     this.uiCam = this.cameras.add(0, 0, VIEW_W, HUD + VIEW_H);
     this.uiCam.setScroll(0, 0);
@@ -204,14 +224,14 @@ export class Yard extends Phaser.Scene {
 
     this.world(this.add.image(0, 0, "map").setOrigin(0, 0).setDepth(0));
     this.cone = this.world(this.add.graphics().setDepth(2));
-    this.glow = this.world(this.add.graphics().setDepth(3));
+    this.rune = this.world(this.add.image(PLATE.x * TILE + 16, PLATE.y * TILE + 16, "rune").setDepth(3));
 
     this.dressCourt();
 
     const crateAt = this.crateAnchor(this.crateTx, this.crateTy);
-    this.crate = this.world(this.add.image(crateAt.x, crateAt.y, "crate").setOrigin(0.5, 1).setScale(1.2));
+    this.crate = this.world(this.add.image(crateAt.x, crateAt.y, "crate").setOrigin(0.5, 1).setScale(1.45));
     const grateAt = anchor(GRATE.x, GRATE.y);
-    this.grate = this.world(this.add.image(grateAt.x, grateAt.y + 8, "grate").setOrigin(0.5, 1));
+    this.grate = this.world(this.add.image(grateAt.x, grateAt.y + 12, "grate").setOrigin(0.5, 1).setDepth(grateAt.y));
     const gateAt = anchor(GATE.x, GATE.y);
     this.gate = this.world(this.add.image(GATE.x * TILE, gateAt.y - 10, "door").setOrigin(0, 0.5));
     const leafAt = anchor(LEAF.x, LEAF.y);
@@ -227,27 +247,33 @@ export class Yard extends Phaser.Scene {
     this.guard = this.world(this.add.sprite(this.gx, this.gy, "guard", rowOf("right") * FRAMES).setOrigin(0.5, 1));
     this.mark = this.world(this.add.image(this.gx, this.gy - 52, "qmark").setOrigin(0.5, 1).setVisible(false));
     this.pebbleShadow = this.world(this.add.image(0, 0, "shadow").setVisible(false).setScale(0.45).setAlpha(0.4));
-    this.pebbleImg = this.world(this.add.image(0, 0, "pebble").setVisible(false).setScale(3).setDepth(2000));
-    this.hint = this.world(this.add.image(PLATE.x * TILE + 16, PLATE.y * TILE - 6, "arrow").setOrigin(0.5, 1).setScale(1.6));
+    this.pebbleImg = this.world(this.add.image(0, 0, "pebble").setVisible(false).setScale(2.6).setDepth(2000));
+    this.hint = this.world(this.add.image(PLATE.x * TILE + 16, PLATE.y * TILE - 8, "arrow").setOrigin(0.5, 1).setScale(2));
 
     this.flash = this.hud(this.add.image(VIEW_W / 2, (HUD + VIEW_H) / 2, "px").setDisplaySize(VIEW_W, HUD + VIEW_H).setTint(0xa83838).setAlpha(0).setDepth(8000));
     this.fade = this.hud(this.add.image(VIEW_W / 2, (HUD + VIEW_H) / 2, "px").setDisplaySize(VIEW_W, HUD + VIEW_H).setTint(0x1a1210).setAlpha(0).setDepth(9000));
     this.hud(this.add.image(0, 0, "hudbar").setOrigin(0, 0).setDepth(5900));
-    this.wireBox = this.hud(this.add.image(40, HUD + VIEW_H - 78, "wirebox").setOrigin(0, 0).setDepth(7000));
-    this.arrow = this.hud(this.add.image(560, HUD + VIEW_H - 28, "arrow").setDepth(7100));
-    this.itemBox = this.hud(this.add.image(VIEW_W / 2, HUD + 120, "itembox").setDepth(7200).setVisible(false));
+    this.wireBox = this.hud(this.add.image(40, HUD + 8, "wirebox").setOrigin(0, 0).setDepth(7000));
+    this.arrow = this.hud(this.add.image(588, HUD + 78, "arrow").setDepth(7100));
+    this.dim = this.hud(this.add.image(VIEW_W / 2, (HUD + VIEW_H) / 2, "px").setDisplaySize(VIEW_W, HUD + VIEW_H).setTint(0x140e0c).setAlpha(0.62).setDepth(7150).setVisible(false));
+    this.itemBox = this.hud(this.add.image(VIEW_W / 2, (HUD + VIEW_H) / 2, "itemcard").setDepth(7200).setVisible(false));
+    this.itemIcon = this.hud(this.add.image(VIEW_W / 2 - 148, (HUD + VIEW_H) / 2 + 2, "leaflet").setScale(2.4).setDepth(7210).setVisible(false));
+    this.hud(this.add.image(STICK_X, STICK_Y, "stick").setDepth(6400).setAlpha(0.72));
+    this.stickKnob = this.hud(this.add.image(STICK_X, STICK_Y, "knob").setDepth(6410).setAlpha(0.94));
 
     for (let i = 0; i < 3; i++) {
       this.heartsImg.push(this.hud(this.add.image(8 + i * 18, 12, "heart").setOrigin(0, 0).setDepth(6000)));
     }
     this.sel = this.hud(this.add.graphics().setDepth(6000));
+    const portX = VIEW_W - 14 - 3 * 40;
     (["kite", "veil", "key"] as const).forEach((id, i) => {
-      const img = this.hud(this.add.image(78 + i * 42, 2, `port-${id}`).setOrigin(0, 0).setDisplaySize(36, 36).setDepth(6100));
+      const img = this.hud(this.add.image(portX + i * 40, 2, `port-${id}`).setOrigin(0, 0).setDisplaySize(36, 36).setDepth(6100));
       this.ports.push({ id, img });
     });
 
     const kb = this.input.keyboard;
     if (kb) this.keys = kb.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
+    this.input.addPointer(4);
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.onDown(p));
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => this.onMove(p));
@@ -270,50 +296,97 @@ export class Yard extends Phaser.Scene {
       const at = anchor(tx, ty);
       return this.world(this.add.image(at.x, at.y + 2, key).setOrigin(ox, oy).setScale(scale).setDepth(at.y));
     };
-    this.world(this.add.image(25 * TILE, 8 * TILE, "well").setOrigin(0.5, 1).setDepth(8 * TILE));
+    this.world(this.add.image(WELL.x * TILE, WELL.y * TILE, "well").setOrigin(0, 0).setDepth((WELL.y + 2) * TILE));
     drop("barrel", 8, 5);
     drop("sack", 9, 5, 0.5, 1, 0.85);
-    drop("flower", 6, 4, 0.5, 1, 0.9);
+    drop("tulsi", 6, 4);
     drop("barrel", 8, 10, 0.5, 1, 0.9);
-    drop("flower", 28, 10, 0.5, 1, 0.9);
-    drop("sack", 12, 6, 0.5, 1, 0.8);
-    drop("barrel", 29, 7, 0.5, 1, 0.85);
-    this.world(this.add.image(10 * TILE, 11 * TILE, "rug").setOrigin(0, 1).setScale(0.7).setDepth(11 * TILE));
-    this.world(this.add.image(20 * TILE, 12 * TILE, "rug").setOrigin(0, 1).setScale(0.8).setDepth(12 * TILE));
-    for (let i = 0; i < 5; i++) {
-      this.world(this.add.image((1 + i) * TILE + 8, 9 * TILE + 4, "awning").setOrigin(0, 1).setDepth(9 * TILE + 4));
+    drop("tulsi", 28, 10);
+    drop("pillar", 12, 6);
+    drop("bicycle", BICYCLE.x, BICYCLE.y);
+    drop("officer", OFFICER.x, OFFICER.y);
+    this.world(this.add.image(10 * TILE + 2, 11 * TILE, "charpoy").setOrigin(0, 1).setDepth(11 * TILE));
+    this.world(this.add.image(20 * TILE + 2, 12 * TILE, "charpoy").setOrigin(0, 1).setDepth(12 * TILE));
+    this.world(this.add.image(TONGA.x * TILE - 4, (TONGA.y + 1) * TILE, "tonga").setOrigin(0, 1).setDepth((TONGA.y + 1) * TILE));
+    drop("kettle", 6, 9);
+    drop("kettle", 7, 9);
+    drop("kulhad", 4, 9, 0.5, 1, 1.3);
+    drop("kulhad", 5, 9, 0.5, 1, 1.3);
+    for (let i = 0; i < 6; i++) {
+      this.world(this.add.image((1 + i) * TILE + 2, 9 * TILE, "awning").setOrigin(0, 1).setDepth(9 * TILE));
     }
-    for (const x of [6, 14, 22, 30]) {
-      this.lanterns.push(this.world(this.add.image(x * TILE + 16, 2 * TILE + 6, "lantern").setOrigin(0.5, 0).setDepth(3 * TILE)));
+    for (const x of [6, 10, 22, 30]) {
+      this.lanterns.push(this.world(this.add.image(x * TILE + 16, 2 * TILE + 2, "lantern").setOrigin(0.5, 0).setDepth(3 * TILE)));
     }
-    for (const x of [5, 11, 18, 27]) {
-      this.laundry.push(this.world(this.add.image(x * TILE + 8, 3 * TILE + 10, "laundry").setOrigin(0.5, 0).setDepth(4 * TILE)));
-    }
+    const cloths = ["laundry", "laundry2", "laundry3", "laundry"];
+    [5, 25, 18, 27].forEach((x, i) => {
+      this.laundry.push(this.world(this.add.image(x * TILE + 8, 3 * TILE + 4, cloths[i]).setOrigin(0.5, 0).setDepth(4 * TILE)));
+    });
   }
 
   private crateAnchor(tx: number, ty: number): { x: number; y: number } {
     return { x: tx * TILE + TILE / 2, y: ty * TILE + TILE - 2 };
   }
 
+  private inStick(x: number, y: number): boolean {
+    return x < 156 && y > HUD + VIEW_H - 156;
+  }
+
+  private setStick(x: number, y: number): void {
+    let dx = x - STICK_X;
+    let dy = y - STICK_Y;
+    const mag = Math.hypot(dx, dy) || 1;
+    const clamped = Math.min(mag, STICK_R);
+    dx = (dx / mag) * clamped;
+    dy = (dy / mag) * clamped;
+    this.stickKnob.setPosition(STICK_X + dx, STICK_Y + dy);
+    const amount = clamped / STICK_R;
+    if (amount < STICK_DEAD) {
+      this.stickDx = 0;
+      this.stickDy = 0;
+      return;
+    }
+    const scaled = (amount - STICK_DEAD) / (1 - STICK_DEAD);
+    this.stickDx = (dx / clamped) * scaled;
+    this.stickDy = (dy / clamped) * scaled;
+  }
+
+  private releaseStick(): void {
+    this.stickId = -1;
+    this.stickDx = 0;
+    this.stickDy = 0;
+    this.stickKnob.setPosition(STICK_X, STICK_Y);
+  }
+
+  private stickAim(): { x: number; y: number } | null {
+    if (this.stickDx === 0 && this.stickDy === 0) return null;
+    return { x: this.stickDx, y: this.stickDy };
+  }
+
   private onDown(p: Phaser.Input.Pointer): void {
-    if (this.pid !== -1) return;
-    this.pid = p.id;
+    this.sfx.unlock();
+    this.lastTap = { x: Math.round(p.x), y: Math.round(p.y) };
+    if (this.talking || this.itemUp) {
+      if (this.tapId === -1) {
+        this.tapId = p.id;
+        this.dismissTalk = this.talking;
+        this.dismissItem = this.itemUp;
+      }
+      return;
+    }
+    if (this.stickId === -1 && this.inStick(p.x, p.y) && !this.dying) {
+      this.stickId = p.id;
+      this.setStick(p.x, p.y);
+      return;
+    }
+    if (this.tapId !== -1) return;
+    this.tapId = p.id;
     this.downX = p.x;
     this.downY = p.y;
-    this.lastTap = { x: Math.round(p.x), y: Math.round(p.y) };
     this.dragged = false;
     this.pending = null;
     this.dismissTalk = false;
     this.dismissItem = false;
-    this.sfx.unlock();
-    if (this.talking) {
-      this.dismissTalk = true;
-      return;
-    }
-    if (this.itemUp) {
-      this.dismissItem = true;
-      return;
-    }
     if (this.dying || this.lock) return;
     const port = this.portAt(p.x, p.y);
     if (port) {
@@ -323,44 +396,45 @@ export class Yard extends Phaser.Scene {
     if (p.y < HUD) return;
     const w = this.cameras.main.getWorldPoint(p.x, p.y);
     const hit = this.hitWorld(w.x, w.y);
-    if (hit) {
-      this.pending = hit;
-      return;
-    }
-    this.order = this.pathTo(w.x, w.y);
+    if (hit) this.pending = hit;
   }
 
   private onMove(p: Phaser.Input.Pointer): void {
-    if (p.id !== this.pid || this.talking || this.itemUp || this.dying || this.lock) return;
-    if (Math.hypot(p.x - this.downX, p.y - this.downY) < 10) return;
-    if (p.y < HUD) return;
-    this.dragged = true;
-    this.pending = null;
-    const w = this.cameras.main.getWorldPoint(p.x, p.y);
-    this.order = { kind: "steer", x: w.x, y: w.y };
+    if (p.id === this.stickId) {
+      this.setStick(p.x, p.y);
+      return;
+    }
+    if (p.id !== this.tapId || this.talking || this.itemUp) return;
+    if (Math.hypot(p.x - this.downX, p.y - this.downY) > 12) {
+      this.dragged = true;
+      this.pending = null;
+    }
   }
 
   private onUp(p: Phaser.Input.Pointer): void {
-    if (p.id !== this.pid) return;
-    this.pid = -1;
+    if (p.id === this.stickId) {
+      this.releaseStick();
+      return;
+    }
+    if (p.id !== this.tapId) return;
+    this.tapId = -1;
     if (this.dismissTalk && this.talking) {
       this.talking = false;
       this.wireBox.setVisible(false);
       this.arrow.setVisible(false);
+      this.dismissTalk = false;
       this.sfx.startMusic();
       return;
     }
     if (this.dismissItem && this.itemUp) {
-      this.itemUp = false;
-      this.itemBox.setVisible(false);
+      this.hideItem();
+      this.dismissItem = false;
       return;
     }
     if (this.pending && !this.dragged) {
       this.beginInteract(this.pending);
       this.pending = null;
-      return;
     }
-    if (this.order?.kind === "steer") this.order = null;
   }
 
   private portAt(x: number, y: number): Spy | null {
@@ -389,7 +463,6 @@ export class Yard extends Phaser.Scene {
     const on = !this.disguise;
     this.sfx.rustle(on);
     this.lock = { kind: "cloak", t: 0, dur: 420, on, sparked: 0 };
-    this.order = null;
     this.puff(this.px, this.py - 20, 6);
   }
 
@@ -410,79 +483,30 @@ export class Yard extends Phaser.Scene {
   private beginInteract(kind: Then): void {
     if (kind === "guard") {
       const d = Math.hypot(this.px - this.gx, this.py - this.gy);
-      if (d < 44) {
-        this.jab();
-        return;
-      }
-      if (this.who === "kite" && d < 300) {
-        this.throwAt("guard");
-        return;
-      }
-      this.order = this.pathTo(this.gx, this.gy, "guard");
+      if (d < 44) this.jab();
+      else if (this.who === "kite" && d < 300) this.throwAt("guard");
       return;
     }
     if (kind === "bell") {
       const bx = BELL.x * TILE + 16;
       const by = BELL.y * TILE + 36;
-      if (this.who === "kite" && Math.hypot(this.px - bx, this.py - by) < 320) {
-        this.throwAt("bell");
-        return;
-      }
-      this.order = this.pathTo(bx, by + 28, "bell");
+      if (this.who === "kite" && Math.hypot(this.px - bx, this.py - by) < 320) this.throwAt("bell");
       return;
     }
     if (kind === "gate") {
       if (this.adjacent(GATE.x, GATE.y)) this.useGate();
-      else this.order = this.pathTo(GATE.x * TILE + 8, GATE.y * TILE + 20, "gate");
       return;
     }
     if (kind === "leaf") {
-      if (!this.grateOpen) {
-        this.order = this.pathTo(GRATE.x * TILE - 16, GRATE.y * TILE + 20);
-        return;
-      }
-      if (this.adjacent(LEAF.x, LEAF.y)) this.pickup();
-      else this.order = this.pathTo(LEAF.x * TILE + 16, LEAF.y * TILE + 20, "leaf");
+      if (this.grateOpen && this.adjacent(LEAF.x, LEAF.y)) this.pickup();
       return;
     }
+    if (!this.adjacent(this.crateTx, this.crateTy)) return;
     const dx = Math.sign(this.crateTx * TILE + 16 - this.px) || 1;
     const dy = Math.sign(this.crateTy * TILE + 20 - this.py);
     const sx = Math.abs(this.crateTx * TILE + 16 - this.px) >= Math.abs(this.crateTy * TILE + 20 - this.py) ? dx : 0;
     const sy = sx === 0 ? (dy || 1) : 0;
-    if (this.adjacent(this.crateTx, this.crateTy)) this.tryPush(sx, sy);
-    else this.order = this.pathTo(this.crateTx * TILE + 16 - sx * 28, this.crateTy * TILE + 20 - sy * 28, "push", sx, sy);
-  }
-
-  private pathTo(x: number, y: number, then?: Then, psx = 0, psy = 0): Order | null {
-    let tx = Math.floor(x / TILE);
-    let ty = Math.floor(y / TILE);
-    const solid = (cx: number, cy: number) => this.tileSolid(cx, cy);
-    const goal = nearestOpen(MAP_W, MAP_H, solid, tx, ty);
-    if (!goal) return { kind: "steer", x, y };
-    tx = goal.x;
-    ty = goal.y;
-    const start = this.tileOf(this.px, this.py);
-    const tiles = astar(MAP_W, MAP_H, solid, start.x, start.y, tx, ty);
-    if (!tiles || tiles.length === 0) {
-      if (then) return { kind: "path", pts: [], i: 0, then, psx, psy };
-      return { kind: "steer", x, y };
-    }
-    return {
-      kind: "path",
-      pts: tiles.map((t) => anchor(t.x, t.y)),
-      i: 0,
-      then,
-      psx,
-      psy,
-    };
-  }
-
-  private arrive(then?: Then, psx = 0, psy = 0): void {
-    if (then === "bell" && this.who === "kite") this.throwAt("bell");
-    else if (then === "guard") this.beginInteract("guard");
-    else if (then === "gate") this.useGate();
-    else if (then === "leaf") this.beginInteract("leaf");
-    else if (then === "push") this.tryPush(psx, psy);
+    this.tryPush(sx, sy);
   }
 
   private throwAt(target: "bell" | "guard"): void {
@@ -492,14 +516,12 @@ export class Yard extends Phaser.Scene {
     this.facing = this.faceOf(tx - this.px, ty - this.py);
     this.lock = { kind: "throw", t: 0, dur: 460, target };
     this.pebbleShot = false;
-    this.order = null;
   }
 
   private jab(): void {
     if (this.lock) return;
     this.facing = this.faceOf(this.gx - this.px, this.gy - this.py);
     this.lock = { kind: "jab", t: 0, dur: 180 };
-    this.order = null;
     this.sfx.thud();
     this.stunGuard(700, false);
     const dx = this.gx - this.px;
@@ -522,22 +544,35 @@ export class Yard extends Phaser.Scene {
     this.lock = { kind: "kneel", t: 0, dur: 720, sparked: 0 };
     this.knelt = false;
     this.sparkAcc = 0;
-    this.order = null;
   }
 
   private pickup(): void {
     if (this.leafletGot || !this.grateOpen || this.leafFlash > 0) return;
     if (!this.adjacent(LEAF.x, LEAF.y)) return;
     this.leafFlash = 2;
-    this.order = null;
   }
 
   private finishPickup(): void {
     this.leafletGot = true;
     this.leaf.setVisible(false);
+    this.showItem();
+  }
+
+  private showItem(): void {
     this.itemUp = true;
-    this.itemBox.setVisible(true);
+    this.dim.setVisible(true).setAlpha(0.62);
+    this.itemBox.setVisible(true).setScale(0.72);
+    this.itemIcon.setVisible(true).setScale(1.2);
+    this.tweens.add({ targets: this.itemBox, scale: 1, duration: 180, ease: "Back.Out" });
+    this.tweens.add({ targets: this.itemIcon, scale: 2.6, duration: 180, ease: "Back.Out" });
     this.sfx.jingle();
+  }
+
+  private hideItem(): void {
+    this.itemUp = false;
+    this.itemBox.setVisible(false);
+    this.itemIcon.setVisible(false);
+    this.dim.setVisible(false);
   }
 
   private pressPlate(): void {
@@ -546,9 +581,16 @@ export class Yard extends Phaser.Scene {
     this.sfx.rumble();
     this.shake(2, 240);
     this.hint.setVisible(false);
+    this.rune.setVisible(false);
     const dustY = this.grate.y;
-    this.tweens.add({ targets: this.grate, y: this.grate.y - 78, angle: -12, duration: 420 });
-    this.puff(this.grate.x, dustY, 8);
+    this.tweens.add({
+      targets: this.grate,
+      y: this.grate.y - 52,
+      alpha: 0,
+      duration: 380,
+      onComplete: () => this.grate.setVisible(false),
+    });
+    this.puff(this.grate.x, dustY, 10);
   }
 
   private stunGuard(ms: number, _sit: boolean): void {
@@ -599,9 +641,9 @@ export class Yard extends Phaser.Scene {
     const r = cx + 10;
     const t = foot - 12;
     const b = foot;
-    const cl = this.crateTx * TILE + 4;
-    const ct = this.crateTy * TILE + 8;
-    return l < cl + TILE - 8 && r > cl && t < ct + TILE - 4 && b > ct;
+    const cl = this.crateTx * TILE;
+    const ct = this.crateTy * TILE;
+    return l < cl + TILE && r > cl && t < ct + TILE && b > ct;
   }
 
   private tryPush(sx: number, sy: number): boolean {
@@ -665,9 +707,7 @@ export class Yard extends Phaser.Scene {
     const firstX = Math.abs(dx) >= Math.abs(dy);
     this.step(firstX ? dx : 0, firstX ? 0 : dy);
     this.step(firstX ? 0 : dx, firstX ? dy : 0);
-    const moved = Math.hypot(this.px - ox, this.py - oy);
-    if (moved > 0.2) this.facing = this.faceOf(this.px - ox, this.py - oy);
-    return moved;
+    return Math.hypot(this.px - ox, this.py - oy);
   }
 
   private step(dx: number, dy: number): void {
@@ -866,7 +906,6 @@ export class Yard extends Phaser.Scene {
     this.px += (dx / m) * 28;
     this.py += (dy / m) * 18;
     this.clampPlayer();
-    this.order = null;
     if (this.hearts <= 0) this.dying = true;
   }
 
@@ -880,7 +919,6 @@ export class Yard extends Phaser.Scene {
     this.dying = false;
     this.disguise = false;
     this.disguiseT = 0;
-    this.order = null;
     this.lock = null;
     this.pebble = null;
     this.pebbleImg.setVisible(false);
@@ -891,9 +929,9 @@ export class Yard extends Phaser.Scene {
     this.crate.setPosition(c.x, c.y);
     this.grateOpen = false;
     const g = anchor(GRATE.x, GRATE.y);
-    this.grate.setPosition(g.x, g.y + 8);
-    this.grate.angle = 0;
+    this.grate.setVisible(true).setAlpha(1).setAngle(0).setPosition(g.x, g.y + 12);
     this.hint.setVisible(true);
+    this.rune.setVisible(true);
     const home = anchor(GUARD_NODES[0].x, GUARD_NODES[0].y);
     this.gx = home.x;
     this.gy = home.y;
@@ -1012,7 +1050,10 @@ export class Yard extends Phaser.Scene {
     for (const lantern of this.lanterns) lantern.setAlpha(0.82 + (Math.sin(this.time.now / 140 + lantern.x) > 0 ? 0.18 : 0));
     for (const cloth of this.laundry) cloth.angle = Math.sin(this.time.now / 260 + cloth.x) * 8;
     this.arrow.setVisible(this.talking && Math.floor(this.time.now / 400) % 2 === 0);
-    if (!this.grateOpen) this.hint.setY(PLATE.y * TILE - 4 + Math.sin(this.time.now / 160) * 4);
+    if (!this.grateOpen) {
+      this.hint.setY(PLATE.y * TILE - 10 + Math.sin(this.time.now / 160) * 5);
+      this.rune.setAlpha(0.55 + Math.sin(this.time.now / 160) * 0.45);
+    }
     if (this.flash.alpha > 0) this.flash.setAlpha(Math.max(0, this.flash.alpha - dt / 140));
 
     if (this.dying) {
@@ -1055,30 +1096,10 @@ export class Yard extends Phaser.Scene {
           }
         }
       } else {
-        const key = this.keyVector();
-        if (key) {
-          this.order = null;
-          this.moved = this.moveBy(key.x * SPEED * dt / 1000, key.y * SPEED * dt / 1000);
-        } else if (this.order?.kind === "steer") {
-          const dx = this.order.x - this.px;
-          const dy = this.order.y - this.py;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 4) this.moved = this.moveBy((dx / dist) * SPEED * dt / 1000, (dy / dist) * SPEED * dt / 1000);
-        } else if (this.order?.kind === "path") {
-          const pt = this.order.pts[this.order.i];
-          if (!pt) {
-            const then = this.order.then;
-            const psx = this.order.psx ?? 0;
-            const psy = this.order.psy ?? 0;
-            this.order = null;
-            this.arrive(then, psx, psy);
-          } else {
-            const dx = pt.x - this.px;
-            const dy = pt.y - this.py;
-            const dist = Math.hypot(dx, dy);
-            if (dist < 3) this.order.i += 1;
-            else this.moved = this.moveBy((dx / dist) * SPEED * dt / 1000, (dy / dist) * SPEED * dt / 1000);
-          }
+        const aim = this.keyVector() ?? this.stickAim();
+        if (aim) {
+          this.facing = this.faceOf(aim.x, aim.y);
+          this.moved = this.moveBy((aim.x * SPEED * dt) / 1000, (aim.y * SPEED * dt) / 1000);
         }
         this.clampPlayer();
         if (this.moved > 0.2) {
@@ -1110,9 +1131,9 @@ export class Yard extends Phaser.Scene {
       const t = Math.min(1, this.pebble.t);
       const x = this.pebble.sx + (this.pebble.tx - this.pebble.sx) * t;
       const groundY = this.pebble.sy + (this.pebble.ty - this.pebble.sy) * t;
-      const arc = Math.sin(t * Math.PI) * 52;
+      const arc = Math.sin(t * Math.PI) * 72;
       this.pebbleImg.setPosition(x, groundY - arc).setVisible(true).setDepth(4000);
-      this.pebbleShadow.setPosition(x, groundY).setVisible(true).setScale(0.35 + (1 - arc / 52) * 0.25).setDepth(groundY - 1);
+      this.pebbleShadow.setPosition(x, groundY).setVisible(true).setScale(0.35 + (1 - arc / 72) * 0.35).setDepth(groundY - 1);
       if (t >= 1) this.landPebble();
     }
 
@@ -1160,22 +1181,9 @@ export class Yard extends Phaser.Scene {
     this.mark.setDepth(5200);
 
     this.drawCone();
-    this.drawGlow();
     this.layoutHud();
     this.updateCamera();
     this.publish();
-  }
-
-  private drawGlow(): void {
-    this.glow.clear();
-    if (this.grateOpen) return;
-    const x = PLATE.x * TILE + 16;
-    const y = PLATE.y * TILE + 16;
-    const pulse = 0.35 + Math.sin(this.time.now / 180) * 0.2;
-    this.glow.fillStyle(0xf0d878, pulse);
-    this.glow.fillCircle(x, y, 18);
-    this.glow.lineStyle(2, 0xffe090, 0.9);
-    this.glow.strokeCircle(x, y, 12);
   }
 
   private drawCone(): void {
@@ -1256,6 +1264,7 @@ export class Yard extends Phaser.Scene {
       lock: this.lock?.kind ?? "",
       audio: this.sfx.status(),
       pebble: this.pebble !== null,
+      stick: { x: this.stickDx, y: this.stickDy, down: this.stickId >= 0 },
       tap: this.lastTap,
     };
     (window as unknown as { __INQ: typeof debug }).__INQ = debug;

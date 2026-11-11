@@ -74,7 +74,9 @@ def lum(c) -> float:
     return 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
 
 
-def recolor(im: Image.Image, shadow, mid, light) -> Image.Image:
+def recolor(im: Image.Image | None, shadow, mid, light) -> Image.Image | None:
+    if im is None:
+        return None
     im = im.convert("RGBA")
     px = im.load()
     colors: dict[tuple, int] = {}
@@ -206,6 +208,147 @@ def components(im: Image.Image, min_px: int, max_px: int) -> list[tuple[int, int
     return out
 
 
+def stamp_cap(sheet_im: Image.Image) -> Image.Image:
+    """Small cream Gandhi cap, drawn on the hair of every walk frame."""
+    out = sheet_im.copy()
+    px = out.load()
+    fill, shade, line = (236, 226, 200, 255), (186, 164, 124, 255), (74, 52, 36, 255)
+    for row in range(4):
+        for col in range(9):
+            ox, oy = col * 64, row * 64
+            top = None
+            xs: list[int] = []
+            for y in range(oy + 4, oy + 40):
+                hit = [x for x in range(ox + 24, ox + 42) if px[x, y][3] > 80]
+                if hit and top is None:
+                    top = y
+                    xs = hit
+                    break
+            if top is None or not xs:
+                continue
+            cx = (min(xs) + max(xs)) // 2
+            for dy in range(6):
+                half = 5 if dy > 0 else 4
+                for dx in range(-half, half + 1):
+                    x, y = cx + dx, top - 1 + dy
+                    if not (0 <= x < out.width and 0 <= y < out.height):
+                        continue
+                    edge = dy == 0 or dy == 5 or abs(dx) == half
+                    crease = dx == 0 and 1 <= dy <= 4
+                    px[x, y] = line if edge else shade if crease else fill
+    return out
+
+
+def stamp_plume(sheet_im: Image.Image) -> Image.Image:
+    """Short red fan on the constable's pagri."""
+    out = sheet_im.copy()
+    px = out.load()
+    red, dark, light = (176, 36, 40, 255), (110, 16, 20, 255), (214, 78, 72, 255)
+    for row in range(4):
+        for col in range(9):
+            ox, oy = col * 64, row * 64
+            top = None
+            cx = ox + 32
+            for y in range(oy + 2, oy + 36):
+                hit = [x for x in range(ox + 22, ox + 44) if px[x, y][3] > 80]
+                if hit:
+                    top = y
+                    cx = (min(hit) + max(hit)) // 2
+                    break
+            if top is None:
+                continue
+            for i, dx in enumerate((-2, -1, 0, 1, 2)):
+                for dy in range(4):
+                    x, y = cx + dx, top - 4 + dy
+                    if 0 <= x < out.width and 0 <= y < out.height:
+                        px[x, y] = dark if dy == 0 or abs(dx) == 2 else light if dx == 0 else red
+    return out
+
+
+def pith_frame(frame: Image.Image) -> Image.Image:
+    """Khaki pith helmet and a red collar on one down-facing frame."""
+    out = frame.copy()
+    px = out.load()
+    top = None
+    xs: list[int] = []
+    for y in range(4, 40):
+        hit = [x for x in range(22, 44) if px[x, y][3] > 80]
+        if hit and top is None:
+            top = y
+            xs = hit
+            break
+    if top is None:
+        return out
+    cx = (min(xs) + max(xs)) // 2
+    khaki, dark, light = (176, 148, 86, 255), (96, 74, 40, 255), (220, 196, 130, 255)
+    red = (160, 36, 36, 255)
+    # Dome sits on the hair. The brim is one row at the hairline so the face stays visible.
+    for dy in range(-7, 3):
+        half = 10 if dy >= 2 else 6 if dy >= -2 else 4
+        for dx in range(-half, half + 1):
+            x, y = cx + dx, top + dy
+            if not (0 <= x < out.width and 0 <= y < out.height):
+                continue
+            if dy >= 2 and abs(dx) < 5:
+                continue
+            edge = abs(dx) >= half - 1 or dy == -7
+            px[x, y] = dark if edge else light if dx < -1 and dy < 0 else khaki
+    for y in range(top + 24, top + 27):
+        for x in range(cx - 7, cx + 8):
+            if not (0 <= x < out.width and 0 <= y < out.height):
+                continue
+            r, g, b, a = px[x, y]
+            if a > 80 and r > 90 and g > 70 and r - b > 20:
+                px[x, y] = red
+    return out
+
+
+GLYPH = {
+    "A": ["010", "101", "111", "101", "101"],
+    "B": ["110", "101", "110", "101", "110"],
+    "C": ["011", "100", "100", "100", "011"],
+    "D": ["110", "101", "101", "101", "110"],
+    "E": ["111", "100", "110", "100", "111"],
+    "F": ["111", "100", "110", "100", "100"],
+    "G": ["011", "100", "101", "101", "011"],
+    "H": ["101", "101", "111", "101", "101"],
+    "I": ["111", "010", "010", "010", "111"],
+    "L": ["100", "100", "100", "100", "111"],
+    "N": ["101", "111", "111", "101", "101"],
+    "O": ["010", "101", "101", "101", "010"],
+    "R": ["110", "101", "110", "101", "101"],
+    "T": ["111", "010", "010", "010", "010"],
+    "U": ["101", "101", "101", "101", "010"],
+    "V": ["101", "101", "101", "101", "010"],
+    "W": ["10001", "10001", "10101", "10101", "01010"],
+    "Y": ["101", "101", "010", "010", "010"],
+    "Z": ["111", "001", "010", "100", "111"],
+}
+
+
+def blit_text(im: Image.Image, text: str, x: int, y: int, color, scale: int = 1) -> None:
+    px = im.load()
+    cx = x
+    for ch in text:
+        if ch == " ":
+            cx += 3 * scale
+            continue
+        glyph = GLYPH.get(ch)
+        if not glyph:
+            cx += 4 * scale
+            continue
+        for gy, row in enumerate(glyph):
+            for gx, bit in enumerate(row):
+                if bit != "1":
+                    continue
+                for sy in range(scale):
+                    for sx in range(scale):
+                        xx, yy = cx + gx * scale + sx, y + gy * scale + sy
+                        if 0 <= xx < im.width and 0 <= yy < im.height:
+                            px[xx, yy] = color
+        cx += (len(glyph[0]) + 1) * scale
+
+
 def build_grid() -> list[str]:
     g = [["#" for _ in range(MAP_W)] for _ in range(MAP_H)]
 
@@ -227,22 +370,25 @@ def build_grid() -> list[str]:
     g[6][3] = "@"
     g[8][15] = "+"
     g[8][22] = "="
-    # Chai stall, west.
+    # Chai stall, west. Wooden counter, not a plaster slab.
     carve(1, 9, 7, 3, "T")
-    # Well inside the patrol square, off the push row and off the loop edges.
-    carve(24, 6, 2, 2, "W")
-    # Charpoy, barrels, pots, pillar. Kept off the guard loop and the push row.
+    # Well in the south-east, clear of the plate at (22, 8) and of the push row.
+    carve(26, 10, 2, 2, "W")
+    # Charpoys, tonga, pots. Kept off the guard loop and the push row.
     g[10][10] = "C"
     g[10][11] = "C"
+    g[11][16] = "C"
+    g[11][17] = "C"
+    g[11][20] = "C"
+    g[11][21] = "C"
     g[5][8] = "&"
     g[5][9] = "&"
     g[10][8] = "&"
     g[10][28] = "&"
-    g[6][12] = "P"
-    g[7][29] = "P"
     g[4][6] = "&"
-    g[11][20] = "C"
-    g[11][21] = "C"
+    g[4][31] = "&"  # officer, off the graffiti and the push row
+    g[8][5] = "&"  # bicycle
+    g[6][12] = "P"
     return ["".join(row) for row in g]
 
 
@@ -259,12 +405,13 @@ def main() -> None:
     hair_long = recolor(fetch("hair/long/adult/walk.png"), (22, 14, 12), (48, 28, 20), (92, 58, 36))
     hair_parted = recolor(fetch("hair/parted/adult/walk.png"), (22, 14, 12), (48, 28, 20), (92, 58, 36))
     pants = recolor(fetch("legs/pants/male/walk.png"), (28, 20, 16), (52, 36, 28), (86, 64, 46))
+    pants_pyjama = recolor(fetch("legs/pants/male/walk.png"), (118, 96, 68), (198, 176, 138), (236, 222, 192))
     pants_khaki = recolor(fetch("legs/pants/male/walk.png"), (78, 62, 32), (138, 112, 58), (196, 168, 96))
     sandals = fetch("feet/sandals/male/walk.png")
-    shoes = fetch("feet/shoes/male/walk.png") or sandals
+    shoes = fetch("feet/shoes/basic/male/walk.png") or sandals
     shirt = fetch("torso/clothes/longsleeve/longsleeve/male/walk.png")
     shirt_f = fetch("torso/clothes/longsleeve/longsleeve/female/walk.png") or shirt
-    kurta = recolor(shirt, (92, 24, 32), (156, 42, 52), (214, 110, 96))
+    kurta = recolor(shirt, (128, 96, 62), (214, 184, 138), (244, 226, 190))
     cream = recolor(shirt, (120, 96, 62), (214, 190, 142), (246, 232, 204))
     khaki = recolor(shirt, (78, 62, 32), (148, 120, 62), (206, 176, 104))
     vest_m = fetch("torso/clothes/vest/male/walk/maroon.png")
@@ -272,18 +419,19 @@ def main() -> None:
     vest_n = fetch("torso/clothes/vest/male/walk/navy.png")
     tunic = fetch("torso/clothes/tunic_sara/female/walk/maroon.png")
     tunic_tan = fetch("torso/clothes/tunic_sara/female/walk/tan.png")
-    scarf = recolor(fetch("neck/scarf/walk.png"), (150, 78, 28), (210, 130, 48), (240, 190, 110))
-    scarf_cream = recolor(fetch("neck/scarf/walk.png"), (150, 120, 78), (220, 196, 150), (246, 232, 204))
-    cap = fetch("hat/cloth/leather_cap/adult/walk/brown.png")
-    hijab = recolor(fetch("hat/cloth/hijab/male/walk.png"), (186, 170, 130), (226, 214, 176), (246, 240, 220))
-    hood = recolor(fetch("hat/cloth/hood/adult/walk.png"), (170, 150, 100), (214, 196, 140), (240, 228, 190))
+    dupatta = recolor(fetch("neck/scarf/walk.png"), (150, 72, 24), (214, 118, 42), (242, 186, 108))
+    hijab_f = recolor(fetch("hat/cloth/hijab/thin/walk.png"), (150, 72, 24), (214, 118, 42), (242, 186, 108))
+    pagri = recolor(fetch("hat/cloth/hijab/male/walk.png"), (110, 18, 22), (176, 36, 40), (214, 78, 72))
     cane = fetch("weapon/polearm/cane/male/walk/cane.png")
 
-    kite = sheet([male, pants, sandals, kurta, vest_b, head_m, eyes, hair_messy, cap, scarf])
-    veil = sheet([female, tunic or recolor(shirt_f, (92, 24, 32), (156, 42, 52), (214, 110, 96)), head_f, eyes, hair_long, scarf_cream])
+    kite = stamp_cap(sheet([male, pants_pyjama, sandals, kurta, vest_b, head_m, eyes, hair_messy]))
+    veil_layers = [female, tunic or recolor(shirt_f, (92, 24, 32), (156, 42, 52), (214, 110, 96)), head_f, eyes, hair_long, hijab_f, dupatta]
+    veil = sheet(veil_layers)
     veil2 = sheet([female, tunic_tan or cream, head_f, eyes, hair_long])
     key = sheet([male, pants, shoes, cream, vest_n or vest_m, head_m, eyes, hair_parted])
-    guard = sheet([male, pants_khaki, shoes, khaki, vest_b, head_m, eyes, hijab or hood, cane])
+    guard = stamp_plume(sheet([male, pants_khaki, shoes, khaki, head_m, eyes, pagri, cane]))
+    officer_sheet = sheet([male, pants_khaki, shoes, khaki, head_m, eyes, hair_parted])
+    pith_frame(officer_sheet.crop((0, 128, 64, 192))).save(OUT / "officer.png")
 
     for name, im in (("kite", kite), ("veil", veil), ("veil2", veil2), ("key", key), ("guard", guard)):
         im.save(OUT / f"{name}.png")
@@ -302,106 +450,388 @@ def main() -> None:
     strip.save(OUT / "walk-strip.png")
     strip.resize((strip.width // 2, strip.height // 2), Image.NEAREST).save("/tmp/lpc/walk-strip-half.png")
 
-    # Tiles.
+
     walls = Image.open(SRC / "tiles/lpc-walls/walls.png").convert("RGBA")
     floors = Image.open(SRC / "tiles/lpc-floors/floors.png").convert("RGBA")
     windows = Image.open(SRC / "tiles/lpc-windows-doors-v2/windows-doors.png").convert("RGBA")
-    # Hand-checked cells. Flat courses only — not a quarter of a larger motif,
-    # and not the repeating window wallpaper.
-    bricks = [(5, 27), (7, 27), (9, 27), (6, 28), (8, 28), (10, 28)]
-    plaster = [(9, 24), (10, 24), (8, 25), (1, 27), (2, 27), (2, 28)]
-    stones = [(8, 30), (9, 30), (10, 30), (5, 30), (6, 30)]
-    ground = [(13, 58), (14, 58), (15, 58), (16, 58), (13, 59), (14, 59), (15, 59), (16, 59), (24, 58), (25, 58), (24, 59), (25, 59)]
-    print("bricks", bricks)
-    print("stones", stones)
-    print("plaster", plaster)
-    print("ground", ground)
 
-    def wall_tile(tx, ty):
-        return walls.crop((tx * 32, ty * 32, tx * 32 + 32, ty * 32 + 32))
+    def cell(im: Image.Image, tx: int, ty: int) -> Image.Image:
+        return im.crop((tx * 32, ty * 32, tx * 32 + 32, ty * 32 + 32)).convert("RGBA")
 
-    def floor_tile(tx, ty):
-        return floors.crop((tx * 32, ty * 32, tx * 32 + 32, ty * 32 + 32))
+    def dust(im: Image.Image) -> Image.Image:
+        im = im.copy()
+        px = im.load()
+        for y in range(im.height):
+            for x in range(im.width):
+                r, g, b, a = px[x, y]
+                if a < 8:
+                    continue
+                px[x, y] = (
+                    min(255, int(r * 1.04 + 16)),
+                    min(255, int(g * 0.90 + 6)),
+                    min(255, int(b * 0.70)),
+                    a,
+                )
+        return im
 
-    # Props from windows, house, chests, barrels, buckets, kitchen, rugs.
-    comps = components(windows, 180, 6000)
-    comps.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
-    print("window components", len(comps))
-    contact = Image.new("RGBA", (900, 1400), (24, 18, 16, 255))
-    cd = ImageDraw.Draw(contact)
-    shown = 0
-    chosen = {"flower": None, "lattice": None, "arch": None, "door": None, "iron": None, "bench": None, "pillar": None}
-    for i, (x0, y0, x1, y1, green) in enumerate(comps[:80]):
-        crop = windows.crop((x0, y0, x1, y1))
-        bw, bh = crop.size
-        col, row = i % 6, i // 6
-        ox, oy = 8 + col * 148, 8 + row * 130
-        scale = min(120 / max(1, bw), 90 / max(1, bh), 2)
-        thumb = crop.resize((max(1, int(bw * scale)), max(1, int(bh * scale))), Image.NEAREST)
-        contact.paste(thumb, (ox, oy), thumb)
-        cd.text((ox, oy + 96), f"{i} {bw}x{bh} g{green}", fill=(240, 220, 180, 255))
-        area_green = green / max(1, bw * bh)
-        if chosen["flower"] is None and area_green > 0.08 and bw >= 24:
-            chosen["flower"] = crop
-        if chosen["bench"] is None and bw > bh * 2.2 and 16 < bh < 40 and green < 30:
-            chosen["bench"] = crop
-        if chosen["pillar"] is None and bh > bw * 2.2 and bw < 36 and green < 20:
-            chosen["pillar"] = crop
-        if chosen["door"] is None and bh > bw and bw >= 28 and bh >= 48 and green < 15:
-            # Prefer a warm wooden door over a pale one.
-            st = stats(crop.resize((32, 32)))
-            if st and st[0] > st[2] + 10 and st[0] > 80:
-                chosen["door"] = crop
-        if chosen["iron"] is None and bh > 40 and bw > 24 and green < 8:
-            st = stats(crop.resize((32, 32)))
-            if st and st[0] < 90 and st[1] < 90 and st[3] > 20:
-                chosen["iron"] = crop
-        if chosen["arch"] is None and bw > 36 and bh > 40 and green < 20:
-            chosen["arch"] = crop
-        if chosen["lattice"] is None and 20 <= bw <= 48 and 24 <= bh <= 56 and green < 12:
-            st = stats(crop.resize((32, 32)))
-            if st and 70 < st[0] < 160 and st[3] > 22:
-                chosen["lattice"] = crop
-        shown += 1
-    contact.save("/tmp/lpc/windows-index.png")
-    for name, im in chosen.items():
-        if im is not None:
-            im.save(OUT / f"prop-{name}.png")
-            print("prop", name, im.size)
-        else:
-            print("prop missing", name)
-    if chosen["iron"] is not None:
-        chosen["iron"].save(OUT / "grate.png")
+    # One running-bond family (LPC floors row 53). Variation is the mortar, not a new texture.
+    pavers = [dust(cell(floors, tx, 53)) for tx in (12, 13, 14, 15, 16, 17)]
+    bricks = [cell(walls, tx, 27) for tx in (12, 13, 14, 15)] + [cell(walls, tx, 28) for tx in (12, 14)]
+    stone = [cell(walls, tx, 27) for tx in (0, 1, 2)]
+
+    def plank(seed: int) -> Image.Image:
+        im = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        px = im.load()
+        for y in range(32):
+            for x in range(32):
+                stripe = (y // 8) % 2
+                base = (132, 82, 44) if stripe == 0 else (112, 68, 36)
+                if y % 8 == 0 or x in (0, 31):
+                    base = (58, 36, 22)
+                elif (x * 3 + seed + y) % 11 == 0:
+                    base = (base[0] - 18, base[1] - 12, base[2] - 8)
+                px[x, y] = base + (255,)
+        return im
+
+    planks = [plank(i) for i in range(4)]
+
+    def with_coping(brick: Image.Image, sand: Image.Image, side: str | None) -> Image.Image:
+        if side is None:
+            return brick
+        out = brick.copy()
+        if side == "s":
+            out.paste(sand.crop((0, 22, 32, 32)), (0, 22))
+        elif side == "n":
+            out.paste(sand.crop((0, 0, 32, 10)), (0, 0))
+        elif side == "e":
+            out.paste(sand.crop((22, 0, 32, 32)), (22, 0))
+        elif side == "w":
+            out.paste(sand.crop((0, 0, 10, 32)), (0, 0))
+        return out
+
+    def dot(px, x, y, color, w, h):
+        if 0 <= x < w and 0 <= y < h:
+            px[x, y] = color
+
+    def ellipse(px, cx, cy, rx, ry, color, w, h, ring=None):
+        for y in range(int(cy - ry) - 1, int(cy + ry) + 2):
+            for x in range(int(cx - rx) - 1, int(cx + rx) + 2):
+                nx = 0 if rx == 0 else (x - cx) / rx
+                ny = 0 if ry == 0 else (y - cy) / ry
+                d = nx * nx + ny * ny
+                if ring is None and d <= 1:
+                    dot(px, x, y, color, w, h)
+                elif ring is not None and ring <= d <= 1:
+                    dot(px, x, y, color, w, h)
+
+    INK = (36, 24, 20, 255)
+    SAND = (206, 170, 116, 255)
+    SAND_D = (96, 68, 40, 255)
+    IRON = (62, 58, 54, 255)
+    IRON_L = (176, 172, 164, 255)
+    SAFF = (214, 112, 36, 255)
+    SAFF_L = (240, 176, 72, 255)
+    CLAY = (158, 84, 48, 255)
+    GREEN = (46, 104, 48, 255)
+    GREEN_D = (24, 64, 32, 255)
+    CREAM = (236, 224, 196, 255)
+    WATER = (24, 40, 48, 255)
+
+    def make_plate(floor: Image.Image) -> Image.Image:
+        im = floor.copy()
+        px = im.load()
+        for y in range(5, 27):
+            for x in range(5, 27):
+                rim = x in (5, 6, 25, 26) or y in (5, 6, 25, 26)
+                core = 11 <= x <= 20 and 11 <= y <= 20
+                if rim:
+                    px[x, y] = IRON_L if (x + y) % 2 == 0 else INK
+                elif core:
+                    px[x, y] = (28, 26, 24, 255)
+                else:
+                    px[x, y] = IRON
+        for i in range(-5, 6):
+            px[16 + i, 16 - (5 - abs(i))] = SAFF
+            px[16 + i, 16 + (5 - abs(i))] = SAFF_L
+        px[16, 16] = (255, 220, 140, 255)
+        return im
+
+    def make_rune() -> Image.Image:
+        im = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        px = im.load()
+        for i in range(-5, 6):
+            px[16 + i, 16 - (5 - abs(i))] = SAFF_L
+            px[16 + i, 16 + (5 - abs(i))] = SAFF
+        px[16, 16] = (255, 228, 160, 255)
+        px[16, 10] = SAFF_L
+        px[16, 22] = SAFF
+        return im
+
+    def make_bars() -> Image.Image:
+        im = Image.new("RGBA", (32, 40), (0, 0, 0, 0))
+        px = im.load()
+        for x in range(3, 29):
+            for t, c in ((0, INK), (1, IRON), (2, IRON_L)):
+                px[x, 2 + t] = c
+                px[x, 34 + t] = c
+        for bx in (5, 11, 17, 23):
+            for y in range(2, 38):
+                px[bx, y] = INK
+                px[bx + 1, y] = IRON
+                px[bx + 2, y] = IRON_L
+        return im
+
+    def make_pebble() -> Image.Image:
+        im = Image.new("RGBA", (16, 12), (0, 0, 0, 0))
+        px = im.load()
+        ellipse(px, 8, 6, 7, 5, INK, 16, 12)
+        ellipse(px, 8, 6, 5, 3, (54, 48, 44, 255), 16, 12)
+        ellipse(px, 6, 5, 2, 1, (210, 196, 170, 255), 16, 12)
+        return im
+
+    def make_well() -> Image.Image:
+        im = Image.new("RGBA", (64, 52), (0, 0, 0, 0))
+        px = im.load()
+        ellipse(px, 32, 28, 28, 18, SAND_D, 64, 52)
+        ellipse(px, 32, 26, 24, 15, SAND, 64, 52)
+        ellipse(px, 32, 26, 16, 10, SAND_D, 64, 52)
+        ellipse(px, 32, 26, 13, 8, WATER, 64, 52)
+        ellipse(px, 28, 24, 4, 2, (48, 70, 78, 255), 64, 52)
+        for x in range(16, 48):
+            px[x, 6] = (92, 58, 32, 255)
+            px[x, 7] = INK
+        for y in range(6, 26):
+            px[31, y] = (150, 108, 58, 255)
+            px[32, y] = (92, 64, 36, 255)
+        return im
+
+    def make_charpoy() -> Image.Image:
+        im = Image.new("RGBA", (56, 32), (0, 0, 0, 0))
+        px = im.load()
+        wood, rope = (112, 70, 38, 255), (186, 150, 96, 255)
+        for y in range(6, 26):
+            for x in range(4, 52):
+                edge = x < 7 or x > 48 or y < 9 or y > 22
+                px[x, y] = wood if edge else rope if (x + y) % 2 == 0 else (150, 116, 70, 255)
+        for lx, ly in ((6, 24), (46, 24), (8, 8), (44, 8)):
+            for dy in range(6):
+                px[lx, ly + dy] = INK
+                px[lx + 1, ly + dy] = wood
+        return im
+
+    def make_bicycle() -> Image.Image:
+        im = Image.new("RGBA", (40, 28), (0, 0, 0, 0))
+        px = im.load()
+        ellipse(px, 10, 16, 7, 7, INK, 40, 28)
+        ellipse(px, 10, 16, 5, 5, (0, 0, 0, 0), 40, 28)
+        ellipse(px, 29, 16, 7, 7, INK, 40, 28)
+        ellipse(px, 29, 16, 5, 5, (0, 0, 0, 0), 40, 28)
+        for t in range(16):
+            x = 10 + t
+            y = 16 - t // 3
+            px[x, y] = IRON
+            px[x, y + 1] = INK
+        for y in range(8, 17):
+            px[20, y] = IRON
+        for x in range(16, 26):
+            px[x, 8] = INK
+        return im
+
+    def make_tonga() -> Image.Image:
+        im = Image.new("RGBA", (72, 40), (0, 0, 0, 0))
+        px = im.load()
+        for y in range(8, 20):
+            for x in range(14, 58):
+                px[x, y] = SAFF if y < 14 else (160, 48, 40, 255)
+        for x in range(18, 54):
+            px[x, 20] = (112, 70, 38, 255)
+            px[x, 21] = (84, 52, 30, 255)
+        ellipse(px, 22, 28, 8, 8, INK, 72, 40)
+        ellipse(px, 22, 28, 5, 5, SAND, 72, 40)
+        ellipse(px, 50, 28, 8, 8, INK, 72, 40)
+        ellipse(px, 50, 28, 5, 5, SAND, 72, 40)
+        for y in range(18, 30):
+            px[8, y] = (92, 58, 32, 255)
+        return im
+
+    def make_kettle() -> Image.Image:
+        im = Image.new("RGBA", (18, 16), (0, 0, 0, 0))
+        px = im.load()
+        ellipse(px, 8, 9, 6, 5, (168, 124, 48, 255), 18, 16)
+        ellipse(px, 8, 8, 4, 3, (214, 176, 84, 255), 18, 16)
+        for y in range(3, 8):
+            px[8, y] = (120, 84, 32, 255)
+        for x in range(12, 17):
+            px[x, 8] = (120, 84, 32, 255)
+            px[x, 9] = SAFF_L
+        return im
+
+    def make_kulhad() -> Image.Image:
+        im = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+        px = im.load()
+        ellipse(px, 5, 4, 4, 2, CLAY, 10, 10)
+        for y in range(4, 9):
+            half = 3 if y < 7 else 2
+            for x in range(5 - half, 5 + half):
+                px[x, y] = CLAY if x not in (5 - half, 4 + half) else INK
+        return im
+
+    def make_tulsi() -> Image.Image:
+        im = Image.new("RGBA", (18, 26), (0, 0, 0, 0))
+        px = im.load()
+        ellipse(px, 9, 18, 6, 4, CLAY, 18, 26)
+        ellipse(px, 9, 16, 5, 2, (120, 64, 36, 255), 18, 26)
+        for dx, dy, c in ((0, 4, GREEN_D), (-3, 6, GREEN), (3, 6, GREEN), (0, 8, GREEN), (-2, 2, GREEN_D), (2, 3, GREEN)):
+            ellipse(px, 9 + dx, dy, 3, 3, c, 18, 26)
+        return im
+
+    def make_laundry(colors) -> Image.Image:
+        im = Image.new("RGBA", (16, 22), (0, 0, 0, 0))
+        px = im.load()
+        for x in range(16):
+            px[x, 0] = INK
+            px[x, 1] = (90, 70, 48, 255)
+        for y in range(2, 21):
+            for x in range(2, 14):
+                sag = 0 if y < 16 else (x % 3)
+                if y + sag < 21 and 2 <= x < 14:
+                    px[x, min(20, y)] = colors[(x // 4 + y // 5) % len(colors)]
+        return im
+
+    def make_notice() -> Image.Image:
+        im = Image.new("RGBA", (56, 48), (0, 0, 0, 0))
+        px = im.load()
+        for y in range(2, 46):
+            for x in range(2, 54):
+                if x > 46 and y < 8 and x + y < 56:
+                    continue
+                if y > 40 and x < 8 and x + (46 - y) < 8:
+                    continue
+                px[x, y] = (232, 214, 176, 255) if (x + y) % 9 else (214, 196, 156, 255)
+        blit_text(im, "BY ORDER", 6, 6, INK, 1)
+        blit_text(im, "OF THE", 8, 14, INK, 1)
+        blit_text(im, "GOVERNOR", 4, 22, INK, 1)
+        blit_text(im, "CURFEW", 4, 32, (150, 32, 32, 255), 2)
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                if dx * dx + dy * dy <= 4:
+                    px[8 + dx, 6 + dy] = (150, 28, 28, 255)
+        return im
+
+    def make_poster() -> Image.Image:
+        im = Image.new("RGBA", (34, 46), (0, 0, 0, 0))
+        px = im.load()
+        for y in range(2, 44):
+            for x in range(2, 32):
+                if y < 16:
+                    c = SAFF
+                elif y < 30:
+                    c = CREAM
+                else:
+                    c = GREEN
+                px[x, y] = c
+        tiger = [
+            "..1111....",
+            ".1111111..",
+            "111011111.",
+            "1111111111",
+            ".11111111.",
+            "..11.11.11",
+            "...1..1..1",
+        ]
+        for y, row in enumerate(tiger):
+            for x, bit in enumerate(row):
+                if bit == "1":
+                    px[10 + x, 17 + y] = CREAM if x % 3 == 0 else INK
+                elif bit == "0":
+                    px[10 + x, 17 + y] = CREAM
+        blit_text(im, "AZAD", 7, 5, INK, 1)
+        blit_text(im, "HIND", 7, 34, CREAM, 1)
+        for y in range(0, 18):
+            for x in range(20, 34):
+                if x + y > 30 and (x + y) % 2 == 0:
+                    px[x, y] = (148, 62, 44, 255) if y % 3 else (120, 48, 36, 255)
+        return im
+
+    def make_jaali() -> Image.Image:
+        im = Image.new("RGBA", (22, 30), (0, 0, 0, 0))
+        px = im.load()
+        for y in range(30):
+            for x in range(22):
+                border = x < 2 or y < 2 or x > 19 or y > 27
+                hole = (x % 5 in (2, 3)) and (y % 5 in (2, 3))
+                if border:
+                    px[x, y] = SAND_D
+                elif not hole:
+                    px[x, y] = SAND
+        return im
+
+    def make_pillar() -> Image.Image:
+        im = Image.new("RGBA", (18, 40), (0, 0, 0, 0))
+        px = im.load()
+        for y in range(6, 38):
+            for x in range(4, 14):
+                px[x, y] = SAND if x not in (4, 13) else SAND_D
+        for y in range(2, 8):
+            for x in range(2, 16):
+                px[x, y] = SAND_D if y == 2 else SAND
+        for x in range(3, 15):
+            px[x, 36] = SAND_D
+            px[x, 37] = INK
+        return im
+
+    plate = make_plate(pavers[0])
+    plate.save(OUT / "plate.png")
+    make_rune().save(OUT / "rune.png")
+    make_bars().save(OUT / "grate.png")
+    make_pebble().save(OUT / "pebble.png")
+    make_well().save(OUT / "well.png")
+    make_charpoy().save(OUT / "charpoy.png")
+    make_bicycle().save(OUT / "bicycle.png")
+    make_tonga().save(OUT / "tonga.png")
+    make_kettle().save(OUT / "kettle.png")
+    make_kulhad().save(OUT / "kulhad.png")
+    make_tulsi().save(OUT / "tulsi.png")
+    make_laundry([(236, 228, 210, 255), (214, 206, 188, 255)]).save(OUT / "laundry.png")
+    make_laundry([(214, 112, 36, 255), (186, 86, 28, 255)]).save(OUT / "laundry-s.png")
+    make_laundry([(46, 104, 48, 255), (28, 72, 40, 255)]).save(OUT / "laundry-g.png")
+    make_notice().save(OUT / "notice.png")
+    make_poster().save(OUT / "poster.png")
+    make_jaali().save(OUT / "jaali.png")
+    make_pillar().save(OUT / "pillar.png")
+
+    shadow = Image.new("RGBA", (36, 14), (0, 0, 0, 0))
+    sd = shadow.load()
+    ellipse(sd, 18, 7, 16, 5, (12, 8, 10, 120), 36, 14)
+    shadow.save(OUT / "shadow.png")
 
     house = Image.open(SRC / "base/house.png").convert("RGBA")
-    # The striped chai awning sits between the two upper doors.
-    awning = house.crop((136, 18, 174, 42))
-    awning.save(OUT / "awning.png")
-    print("awning", awning.size)
-    # One wooden leaf, hinge on the left edge.
+    house.crop((136, 18, 174, 42)).save(OUT / "awning.png")
     door = house.crop((100, 14, 130, 58))
     door.save(OUT / "door.png")
-    print("door", door.size)
 
     chests = Image.open(SRC / "base/chests.png").convert("RGBA")
-    # Iron-banded chest is the upper-left 32x32-ish cell. Take the tighter of the two top chests.
-    # The wide iron-banded chest. Scaled to sit inside one tile with the plate rim showing.
-    crate = chests.crop((0, 0, 32, 32))
+    crate = chests.crop((0, 0, 32, 32)).convert("RGBA")
+    cp = crate.load()
+    for y in range(crate.height):
+        for x in range(crate.width):
+            r, g, b, a = cp[x, y]
+            if a < 20:
+                continue
+            if abs(r - g) < 22 and abs(g - b) < 22:
+                cp[x, y] = (min(255, r + 48), min(255, g + 48), min(255, b + 40), a)
+            else:
+                cp[x, y] = (max(0, int(r * 0.62)), max(0, int(g * 0.5)), max(0, int(b * 0.4)), a)
     crate.save(OUT / "crate.png")
 
-    barrel = Image.open(SRC / "base/barrel.png").convert("RGBA")
-    one = barrel.crop((0, 0, 40, 48))
-    bb = one.getbbox()
+    barrel = Image.open(SRC / "base/barrel.png").convert("RGBA").crop((0, 0, 40, 48))
+    bb = barrel.getbbox()
     if bb:
-        one = one.crop(bb)
-    one.save(OUT / "barrel.png")
-
-    buckets = Image.open(SRC / "base/buckets.png").convert("RGBA")
-    buck = buckets.crop((0, 0, 32, 32))
-    bb = buck.getbbox()
-    if bb:
-        buck = buck.crop(bb)
-    buck.save(OUT / "bucket.png")
+        barrel = barrel.crop(bb)
+    barrel.save(OUT / "barrel.png")
+    sack = recolor(barrel, (92, 64, 32), (150, 110, 54), (196, 156, 86))
+    if sack is not None:
+        sack.save(OUT / "sack.png")
 
     lights = Image.open(SRC / "base/castle_lightsources.png").convert("RGBA")
     lamp = lights.crop((64, 0, 96, 68))
@@ -410,149 +840,125 @@ def main() -> None:
         lamp = lamp.crop(bb)
     lamp.save(OUT / "lantern.png")
 
-    kitchen = Image.open(SRC / "base/kitchen.png").convert("RGBA")
-    bowl = kitchen.crop((32, 16, 64, 48))
-    bb = bowl.getbbox()
-    if bb:
-        bowl = bowl.crop(bb)
-    bowl.save(OUT / "bowl.png")
-
-    cabinets = Image.open(SRC / "base/cabinets.png").convert("RGBA")
-    # Orange rug near the top right of the cabinet sheet.
-    rug = None
-    for ty in range(cabinets.height // 16):
-        for tx in range(cabinets.width // 16):
-            cell = cabinets.crop((tx * 16, ty * 16, tx * 16 + 32, ty * 16 + 24))
-            st = stats(cell)
-            if st and st[0] > 140 and st[0] > st[1] + 30 and st[0] > st[2] + 40 and st[3] > 12:
-                rug = cell
-                break
-        if rug:
-            break
-    if rug:
-        bb = rug.getbbox()
-        rug = rug.crop(bb) if bb else rug
-        rug.save(OUT / "rug.png")
-        print("rug", rug.size)
-
-    # Laundry strips cut from the rug, and a sack from the barrel's lower half recolored jute.
-    if rug:
-        cloth = rug.resize((18, 22), Image.NEAREST)
-        cloth.save(OUT / "laundry.png")
-
-    sack = recolor(one, (92, 64, 32), (150, 110, 54), (196, 156, 86))
-    sack.save(OUT / "sack.png")
-    if not (OUT / "rug.png").exists():
-        rug = recolor(floor_tile(14, 62), (110, 42, 28), (176, 78, 40), (214, 130, 64))
-        rug.resize((48, 28), Image.NEAREST).save(OUT / "rug.png")
-    if not (OUT / "laundry.png").exists() and (OUT / "awning.png").exists():
-        cloth = Image.open(OUT / "awning.png").convert("RGBA")
-        cloth.crop((0, 0, min(14, cloth.width), cloth.height)).resize((14, 22), Image.NEAREST).save(OUT / "laundry.png")
-
-    # Plate inlay: a floor tile pushed to brass, with a bright center.
-    plate_src = floor_tile(*ground[0]).convert("RGBA")
-    plate = recolor(plate_src, (120, 78, 24), (196, 140, 40), (240, 200, 90))
-    pp = plate.load()
-    for y in range(8, 24):
-        for x in range(8, 24):
-            if 6 < ((x - 16) ** 2 + (y - 16) ** 2) ** 0.5 < 9:
-                pp[x, y] = (255, 220, 110, 255)
-    plate.save(OUT / "plate.png")
-
-    # Pebble from a warm floor crumb, else a tight crop of the sack highlight.
-    pebble = Image.new("RGBA", (8, 6), (0, 0, 0, 0))
-    pd = pebble.load()
-    rock = [(1, 2), (2, 1), (3, 1), (4, 1), (5, 2), (6, 2), (2, 2), (3, 2), (4, 2), (5, 3), (3, 3), (4, 3), (2, 3), (3, 4), (4, 4)]
-    for x, y in rock:
-        pd[x, y] = (168, 140, 96, 255) if (x + y) % 2 == 0 else (120, 92, 58, 255)
-    pd[3, 2] = (214, 186, 140, 255)
-    pebble.save(OUT / "pebble.png")
-
-    shadow = Image.new("RGBA", (36, 14), (0, 0, 0, 0))
-    sd = shadow.load()
-    for y in range(14):
-        for x in range(36):
-            nx = (x - 18) / 16
-            ny = (y - 7) / 5
-            if nx * nx + ny * ny <= 1:
-                sd[x, y] = (12, 8, 10, 110)
-    shadow.save(OUT / "shadow.png")
+    jharokha = Image.new("RGBA", (26, 24), (0, 0, 0, 0))
+    jp = jharokha.load()
+    for y in range(24):
+        for x in range(26):
+            arch_y = 6 + abs(x - 13) // 2
+            frame = y < 3 or x < 2 or x > 23 or (y < arch_y + 3 and y >= arch_y)
+            recess = y >= arch_y + 3 and 3 <= x <= 22 and y < 21
+            if frame:
+                jp[x, y] = SAND_D if x in (0, 25) or y == 0 else SAND
+            elif recess and (x % 4 == 0 or y % 4 == 0):
+                jp[x, y] = SAND_D
+            elif recess:
+                jp[x, y] = (42, 28, 32, 255)
+            elif y >= 21:
+                jp[x, y] = SAND_D
+    jharokha.save(OUT / "jharokha.png")
 
     rows = build_grid()
-    world = Image.new("RGBA", (MAP_W * TILE, MAP_H * TILE), (42, 32, 28, 255))
+    world = Image.new("RGBA", (MAP_W * TILE, MAP_H * TILE), (92, 58, 40, 255))
+    floorish = set(".@+=LSgKWPC&K")
 
-    # Stall tiles are a solid counter. Props (well, cot, pots) sit on painted floor.
-    OPEN = set(".@+=LSgKWPC&")
-
-    def at(x, y) -> str:
-        if x < 0 or y < 0 or x >= MAP_W or y >= len(rows):
+    def ch_at(x: int, y: int) -> str:
+        if x < 0 or y < 0 or x >= MAP_W or y >= MAP_H:
             return "#"
         return rows[y][x]
 
-    def touches_open(x, y) -> bool:
-        return any(at(x + dx, y + dy) in OPEN for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)))
-
-    def lay_floor(x, y) -> None:
-        # 2×2 clumps, with a cobble patch on a slower rhythm so the court is not one tile.
-        cobble = ground[8:]
-        pavers = ground[:8]
-        # Mostly one family of stone pavers, with a cobble patch here and there.
-        if (x // 5 + y // 4) % 6 == 0:
-            cell = cobble[(x // 2 + y) % len(cobble)]
-        else:
-            cell = pavers[((x // 2) + (y // 2) * 3) % len(pavers)]
-        world.paste(floor_tile(*cell), (x * TILE, y * TILE))
-
     for y, row in enumerate(rows):
         for x, ch in enumerate(row):
-            if ch in OPEN or ch == "T":
-                lay_floor(x, y)
-                if ch == "T":
-                    world.paste(wall_tile(*plaster[(x // 2) % len(plaster)]), (x * TILE, y * TILE))
-                if ch == "=":
-                    world.paste(plate, (x * TILE, y * TILE), plate)
+            if ch == "T":
+                world.paste(planks[(x + y) % len(planks)], (x * TILE, y * TILE))
                 continue
-            if touches_open(x, y):
-                brick_run = (x // 6) % 2 == 0
-                face = bricks[(x // 2) % len(bricks)] if brick_run else plaster[(x // 2) % len(plaster)]
-                world.paste(wall_tile(*face), (x * TILE, y * TILE))
-            else:
-                roof = stones[(x // 3) % len(stones)] if y <= 1 or y >= 12 else bricks[(x // 6) % len(bricks)]
-                world.paste(wall_tile(*roof), (x * TILE, y * TILE))
+            if ch in floorish:
+                tile = pavers[(x * 3 + y * 5) % len(pavers)]
+                if x >= 34:
+                    tile = tile.copy()
+                    px = tile.load()
+                    for yy in range(TILE):
+                        for xx in range(TILE):
+                            r, g, b, a = px[xx, yy]
+                            px[xx, yy] = (r * 45 // 100, g * 40 // 100, b * 38 // 100, a)
+                world.paste(tile, (x * TILE, y * TILE))
+                if ch == "=":
+                    world.paste(plate, (x * TILE, y * TILE))
+                continue
+            side = None
+            if ch_at(x, y + 1) in floorish:
+                side = "s"
+            elif ch_at(x, y - 1) in floorish:
+                side = "n"
+            elif ch_at(x + 1, y) in floorish:
+                side = "e"
+            elif ch_at(x - 1, y) in floorish:
+                side = "w"
+            world.paste(with_coping(bricks[(x + y) % len(bricks)], stone[x % len(stone)], side), (x * TILE, y * TILE))
 
-    jharokha = walls.crop((12 * 32, 30 * 32, 14 * 32, 31 * 32))
-    jharokha.save(OUT / "jharokha.png")
-    flower = Image.open(OUT / "prop-flower.png").convert("RGBA") if (OUT / "prop-flower.png").exists() else None
-    for x in range(2, 32, 5):
-        # North facade is the wall row sitting on the courtyard.
-        thumb = jharokha.copy()
-        thumb.thumbnail((36, 30), Image.NEAREST)
-        world.paste(thumb, (x * TILE - 2, 2 * TILE + 8), thumb)
-        if flower is not None and x % 10 == 2:
-            pot = flower.copy()
-            pot.thumbnail((32, 22), Image.NEAREST)
-            world.paste(pot, (x * TILE, 3 * TILE + 14), pot)
+    wp = world.load()
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch not in floorish or ch_at(x, y - 1) in floorish:
+                continue
+            for yy in range(3):
+                for xx in range(TILE):
+                    r, g, b, a = wp[x * TILE + xx, y * TILE + yy]
+                    wp[x * TILE + xx, y * TILE + yy] = (max(0, r - 28), max(0, g - 22), max(0, b - 16), a)
 
-    # Rugs in the open court so the floor is not one texture.
-    rug_im = Image.open(OUT / "rug.png").convert("RGBA") if (OUT / "rug.png").exists() else None
-    if rug_im:
-        for rx, ry in ((10, 7), (18, 6), (27, 10)):
-            thumb = rug_im.copy()
-            thumb.thumbnail((48, 28), Image.NEAREST)
-            world.alpha_composite(thumb, (rx * TILE, ry * TILE + 4))
+    def draw_arch(tx: int, ty: int) -> None:
+        left = tx * TILE
+        top = ty * TILE
+        brick, brick_d = (158, 64, 46, 255), (96, 36, 30, 255)
+        for y in range(top - 16, top + 32):
+            for t in range(6):
+                dot(wp, left + t, y, brick_d if t == 0 else brick, world.width, world.height)
+                dot(wp, left + 31 - t, y, brick_d if t == 0 else brick, world.width, world.height)
+        cx = left + 16
+        for y in range(top - 14, top + 32):
+            for x in range(left + 6, left + 26):
+                ad = abs(x - cx)
+                rise = 18 if ad < 3 else max(6, 16 - (ad - 3))
+                if y < top - rise + 4:
+                    continue
+                shade = (36, 22, 18, 255) if (x + y) % 2 == 0 else (22, 14, 12, 255)
+                dot(wp, x, y, shade, world.width, world.height)
+        for x in range(left + 6, left + 26):
+            ad = abs(x - cx)
+            rise = 18 if ad < 3 else max(6, 16 - (ad - 3))
+            for t in range(4):
+                dot(wp, x, top - rise + t, SAND if t == 0 else brick_d, world.width, world.height)
+
+    def blind_arch(tx: int, ty: int) -> None:
+        left = tx * TILE
+        top = ty * TILE
+        cx = left + 16
+        for x in range(left + 4, left + 28):
+            ad = abs(x - cx)
+            rise = 12 if ad < 3 else max(2, 10 - (ad - 3) // 2)
+            y_arch = top + 18 - rise
+            for t in range(3):
+                dot(wp, x, y_arch + t, SAND if t < 2 else SAND_D, world.width, world.height)
+            for y in range(y_arch + 3, top + 26):
+                dot(wp, x, y, (120, 46, 38, 255) if (x + y) % 2 == 0 else (96, 36, 32, 255), world.width, world.height)
+
+    draw_arch(33, 5)
+    draw_arch(33, 9)
+    for tx in (6, 19, 30):
+        blind_arch(tx, 3)
+
+    def paste_prop(im: Image.Image, x: int, y: int) -> None:
+        world.alpha_composite(im, (x, y))
+
+    for tx in (4, 11, 21, 29):
+        paste_prop(jharokha, tx * TILE + 3, 2 * TILE + 6)
+    paste_prop(Image.open(OUT / "jaali.png"), 23 * TILE + 5, 2 * TILE + 18)
+    paste_prop(Image.open(OUT / "notice.png"), 7 * TILE, 2 * TILE + 4)
+    paste_prop(Image.open(OUT / "notice.png"), 38 * TILE + 2, 8 * TILE + 2)
+    paste_prop(Image.open(OUT / "poster.png"), 16 * TILE, 2 * TILE + 6)
+    blit_text(world, "CHALO DILLI", 12 * TILE + 2, 3 * TILE + 8, CREAM, 2)
 
     world.save(OUT / "map.png")
     world.resize((world.width // 2, world.height // 2), Image.NEAREST).save("/tmp/lpc/map-half.png")
-
-    # Depth-sorted prop sprites already saved. A 2x2 well assembled from stone + bowl.
-    well = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    ring = wall_tile(*stones[0]) if stones else wall_tile(*bricks[0])
-    for dx, dy in ((0, 0), (32, 0), (0, 32), (32, 32)):
-        well.paste(ring, (dx, dy))
-    bowl_im = Image.open(OUT / "bowl.png").convert("RGBA")
-    bowl_im = bowl_im.resize((28, 20), Image.NEAREST)
-    well.paste(bowl_im, (18, 22), bowl_im)
-    well.save(OUT / "well.png")
 
     meta = {
         "tile": TILE,
@@ -567,9 +973,13 @@ def main() -> None:
         "gate": [33, 9],
         "leaf": [36, 5],
         "sign": [36, 9],
+        "well": [26, 10],
+        "bicycle": [5, 8],
+        "tonga": [16, 11],
+        "officer": [31, 4],
         "guard": [[17, 5], [30, 5], [30, 9], [17, 9]],
     }
-    (ROOT / "src" / "grid.json").write_text(json.dumps(meta, indent=2))
+    (ROOT / "src" / "grid.json").write_text(json.dumps(meta, indent=2) + "\n")
     print("wrote", OUT)
 
 

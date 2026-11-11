@@ -13,6 +13,10 @@ export const GRATE = { x: grid.grate[0], y: grid.grate[1] };
 export const GATE = { x: grid.gate[0], y: grid.gate[1] };
 export const LEAF = { x: grid.leaf[0], y: grid.leaf[1] };
 export const SIGN = { x: grid.sign[0], y: grid.sign[1] };
+export const WELL = { x: grid.well[0], y: grid.well[1] };
+export const BICYCLE = { x: grid.bicycle[0], y: grid.bicycle[1] };
+export const TONGA = { x: grid.tonga[0], y: grid.tonga[1] };
+export const OFFICER = { x: grid.officer[0], y: grid.officer[1] };
 export const GUARD_NODES = grid.guard.map(([x, y]) => ({ x, y }));
 
 const SOLID = new Set(["#", "B", "T", "W", "C", "P", "&"]);

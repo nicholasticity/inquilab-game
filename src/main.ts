@@ -39,7 +39,7 @@ const game = new Phaser.Game({
     width: GAME_W,
     height: GAME_H,
   },
-  input: { activePointers: 2 },
+  input: { activePointers: 4 },
   scene: [Yard],
   audio: { disableWebAudio: false },
 });

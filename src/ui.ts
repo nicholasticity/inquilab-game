@@ -96,13 +96,63 @@ export function makeLeaflet(): Pix {
 }
 
 export function makeArrow(): Pix {
-  const p = new Pix(14, 12);
-  for (let i = 0; i < 7; i++) {
-    p.force(i, i, YELLOW);
-    p.force(13 - i, i, YELLOW);
-    p.force(i, i + 1, BRASS);
-    p.force(13 - i, i + 1, BRASS);
+  const p = new Pix(16, 20);
+  for (let y = 0; y < 8; y++) {
+    p.force(7, y, YELLOW);
+    p.force(8, y, BRASS);
   }
+  for (let i = 0; i < 8; i++) {
+    p.force(7 - i, 8 + i, YELLOW);
+    p.force(8 + i, 8 + i, YELLOW);
+    if (8 + i + 1 < 20) {
+      p.force(7 - i, 9 + i, BRASS);
+      p.force(8 + i, 9 + i, BRASS);
+    }
+  }
+  return p;
+}
+
+export function makeStickBase(): Pix {
+  const s = 68;
+  const p = new Pix(s, s);
+  const c = (s - 1) / 2;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const d = Math.hypot(x - c, y - c);
+      if (d <= 30 && d >= 22) p.force(x, y, d > 28.5 || d < 23.5 ? UMBER : BRASS);
+    }
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = (Math.PI * 2 * i) / 8;
+    p.force(Math.round(c + Math.cos(a) * 26), Math.round(c + Math.sin(a) * 26), CREAM);
+  }
+  return p;
+}
+
+export function makeKnob(): Pix {
+  const s = 26;
+  const p = new Pix(s, s);
+  const c = (s - 1) / 2;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const d = Math.hypot(x - c, y - c);
+      if (d > 11) continue;
+      const hi = d < 5 && x < c && y < c;
+      p.force(x, y, d > 9.5 ? UMBER : hi ? 15 : BRASS);
+    }
+  }
+  return p;
+}
+
+export function makeItemCard(): Pix {
+  const w = 460;
+  const h = 108;
+  const p = new Pix(w, h);
+  p.fillRect(0, 0, w, h, INK);
+  p.fillRect(4, 4, w - 8, h - 8, RED);
+  p.fillRect(8, 8, w - 16, h - 16, 1);
+  drawBig(p, "ITEM GET", 118, 22, YELLOW);
+  drawBig(p, "Coded leaflet", 118, 58, CREAM);
   return p;
 }
 
