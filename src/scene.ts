@@ -119,6 +119,7 @@ export class Yard extends Phaser.Scene {
   private dismissTalk = false;
   private dismissItem = false;
   private lastTap = { x: 0, y: 0 };
+  private footprints: { x: number; y: number; hw: number; hh: number }[] = [];
   private bellT = 0;
   private sparkAcc = 0;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -221,6 +222,7 @@ export class Yard extends Phaser.Scene {
     image("lota");
     image("pots");
     image("goat");
+    image("trunk");
     image("plant");
     image("plant2");
     image("broom");
@@ -391,6 +393,11 @@ export class Yard extends Phaser.Scene {
       this.world(this.add.image(at.x, at.y, "shadow").setOrigin(0.5, 0.5).setAlpha(0.45).setDepth(at.y - 2));
       return img;
     };
+    const solid = (key: string, tx: number, ty: number, hw: number, hh: number) => {
+      drop(key, tx, ty);
+      const at = anchor(tx, ty);
+      this.footprints.push({ x: at.x, y: at.y + 2, hw, hh });
+    };
     const glowAt = (x: number, y: number) => {
       // A floor pool, not a bloom. Normal blend keeps the rings from washing the wall.
       const glow = this.world(this.add.image(x, y, "glow").setOrigin(0.5, 0.5).setAlpha(0.85).setDepth(2));
@@ -417,12 +424,12 @@ export class Yard extends Phaser.Scene {
     drop("matka2", 35, 9);
     // Dressing along the walls, off the patrol, the push row, and the officer's beat.
     drop("plant", 4, 4);
-    drop("crate", 1, 7);
-    drop("pots", 4, 11);
+    solid("trunk", 1, 7, 8, 5);
+    solid("pots", 4, 11, 7, 5);
     drop("broom", 6, 11);
     drop("lota", 19, 11);
-    drop("goat", 21, 11);
-    drop("crate", 23, 11);
+    solid("goat", 21, 11, 9, 5);
+    solid("trunk", 23, 11, 8, 5);
     drop("plant2", 29, 11);
     drop("plant", 37, 10);
     // Bracketed jharokhas. The sill hangs into the yard, so the player can walk in front of it.
@@ -775,6 +782,9 @@ export class Yard extends Phaser.Scene {
       if (Math.hypot(cx - this.gx, foot - this.gy) < 18) return true;
     }
     if (officerSolid && Math.hypot(cx - this.ox, foot - this.oy) < 14) return true;
+    for (const f of this.footprints) {
+      if (r > f.x - f.hw && l < f.x + f.hw && b > f.y - f.hh && t < f.y) return true;
+    }
     return false;
   }
 

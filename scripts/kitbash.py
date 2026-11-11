@@ -1199,68 +1199,79 @@ def _lota() -> Image.Image:
 
 
 def _pot_stack() -> Image.Image:
-    """Three clay pots, stacked, each with a rim."""
-    w, h = 26, 30
+    """Three clay pots, nested so each rim shows around the one above."""
+    w, h = 24, 28
     im = blank(w, h)
     px = im.load()
-    for i, (cy, rx) in enumerate(((22, 11), (15, 8), (9, 6))):
-        for y in range(cy - 6, cy + 3):
-            for x in range(13 - rx, 13 + rx):
-                dy = (y - cy) / 5
-                dx = (x - 13) / rx
-                if dx * dx + dy * dy > 1:
-                    continue
-                shade = (x - (13 - rx // 2)) ** 2 + (y - (cy - 2)) ** 2
-                px[x, y] = AH if shade < 10 else AL if x < 13 else A if shade < 40 else C
-        for x in range(13 - rx + 1, 13 + rx - 1):
-            px[x, cy - 5] = AH
+    cx = 12
+
+    def pot(rim: int, half: int, depth: int) -> None:
+        for y in range(rim, min(h, rim + depth)):
+            rx = half if y < rim + depth - 2 else half - 1
+            for x in range(cx - rx, cx + rx):
+                edge = abs(x - cx) >= rx - 1 or y >= rim + depth - 1
+                px[x, y] = C if edge else AH if x < cx - 1 and y < rim + 3 else AL if x < cx else A
+        for x in range(cx - half, cx + half):
+            px[x, rim] = AH if x < cx else AL
+
+    pot(16, 10, 11)
+    pot(9, 7, 8)
+    pot(3, 5, 7)
     return im
 
 
 def _goat() -> Image.Image:
-    """A recumbent goat facing left: horn, ear, eye, beard, four hooves, rope to a peg."""
-    w, h = 44, 26
+    """A standing goat facing left. The head is held up, with two horns and a beard."""
+    w, h = 56, 38
     im = blank(w, h)
     px = im.load()
-    for y in range(10, 20):
-        for x in range(16, 38):
-            dx = (x - 26) / 11
-            dy = (y - 14) / 5
-            if dx * dx + dy * dy > 1:
-                continue
-            px[x, y] = O if y > 17 else FW if y < 13 else F
-    put(px, 37, 12, F, w, h)
-    put(px, 38, 11, FW, w, h)
-    put(px, 39, 12, O, w, h)
-    for y in range(8, 16):
-        for x in range(8, 18):
-            if (x - 13) ** 2 / 20 + (y - 12) ** 2 / 14 <= 1:
-                px[x, y] = FW if y < 11 else F
-    for x in range(4, 10):
-        put(px, x, 13, F, w, h)
-        put(px, x, 14, O, w, h)
-    put(px, 4, 13, K, w, h)
-    put(px, 11, 11, K, w, h)
-    put(px, 12, 11, WH, w, h)
-    put(px, 16, 8, F, w, h)
-    put(px, 17, 7, FW, w, h)
-    put(px, 18, 8, O, w, h)
-    for i, (x, y) in enumerate(((12, 7), (13, 5), (14, 4), (15, 3), (14, 2))):
-        put(px, x, y, S5 if i % 2 else K, w, h)
-    put(px, 8, 15, E, w, h)
-    put(px, 7, 16, E, w, h)
-    put(px, 7, 17, D, w, h)
-    for x in (20, 24, 30, 34):
-        put(px, x, 19, O, w, h)
-        put(px, x, 20, S5, w, h)
-        put(px, x, 21, K, w, h)
-        put(px, x + 1, 21, K, w, h)
+    # Two thick horns, curving back over the skull.
+    for x, y in (
+        (22, 1), (21, 1), (21, 2), (20, 2), (20, 3), (19, 3), (19, 4), (18, 4), (18, 5), (17, 5), (17, 6),
+        (28, 0), (27, 0), (27, 1), (26, 1), (26, 2), (25, 2), (25, 3), (24, 3), (24, 4), (23, 4), (23, 5), (22, 6),
+    ):
+        put(px, x, y, K, w, h)
+        put(px, x + 1, y, S5, w, h)
+    # Square skull, short muzzle. The head sits above the back.
+    for y in range(6, 16):
+        for x in range(12, 24):
+            px[x, y] = OL if y < 9 else O
+    for y in range(10, 15):
+        for x in range(6, 13):
+            px[x, y] = O if y < 13 else W
+    put(px, 6, 11, K, w, h)
+    put(px, 16, 9, K, w, h)
+    put(px, 17, 9, WH, w, h)
+    # Ear, pointed back rather than hanging.
+    for x, y in ((23, 8), (24, 7), (25, 7), (26, 8), (24, 8)):
+        put(px, x, y, OL, w, h)
+    # Beard under the chin.
+    for y, xs in ((16, range(10, 15)), (17, range(9, 14)), (18, range(9, 13)), (19, range(10, 13)), (20, range(10, 12))):
+        for x in xs:
+            px[x, y] = K if y > 18 else S5
+    # Narrow neck into a barrel body.
+    for y in range(14, 20):
+        for x in range(18, 26):
+            px[x, y] = O
+    for y in range(16, 30):
+        x0 = 24 if y < 19 else 22
+        x1 = 50 if y < 27 else 48
+        for x in range(x0, x1):
+            px[x, y] = OL if y < 19 else W if y > 26 else O
+    put(px, 49, 16, O, w, h)
+    put(px, 50, 15, OL, w, h)
+    put(px, 51, 16, W, w, h)
+    for x in (26, 32, 40, 46):
+        put(px, x, 29, W, w, h)
+        put(px, x, 30, O, w, h)
+        put(px, x, 31, K, w, h)
+        put(px, x + 1, 31, K, w, h)
     for i in range(9):
-        put(px, 10 - i, 15 + i // 2, E, w, h)
-    put(px, 1, 20, OL, w, h)
-    put(px, 1, 21, W, w, h)
-    put(px, 2, 21, OL, w, h)
-    put(px, 0, 21, W, w, h)
+        put(px, 16 - i, 18 + i // 2, E, w, h)
+    put(px, 6, 23, OL, w, h)
+    put(px, 5, 24, W, w, h)
+    put(px, 6, 24, OL, w, h)
+    put(px, 7, 24, W, w, h)
     return im
 
 
@@ -1282,6 +1293,28 @@ def _plant(tall: bool) -> Image.Image:
     for dx, dy, c in leaves:
         put(px, cx + dx, pot_top + dy, c, w, h)
         put(px, cx + dx, pot_top + dy + 1, G, w, h)
+    return im
+
+
+def _trunk() -> Image.Image:
+    """A tin trunk. Iron box and one latch, not a banded treasure chest."""
+    w, h = 30, 18
+    im = blank(w, h)
+    px = im.load()
+    for y in range(6, 16):
+        for x in range(3, 27):
+            edge = x < 5 or x > 24 or y > 13
+            px[x, y] = P if edge else R if x < 12 else L
+    for y in range(3, 7):
+        for x in range(4, 26):
+            px[x, y] = L if y == 3 else R if x < 14 else P
+    for x in range(12, 18):
+        px[x, 8] = BH
+        px[x, 9] = BD
+    put(px, 14, 10, BR, w, h)
+    put(px, 15, 10, BD, w, h)
+    for x, y in ((4, 7), (24, 7), (4, 14), (24, 14)):
+        put(px, x, y, Q, w, h)
     return im
 
 
@@ -1347,6 +1380,7 @@ def build() -> dict[str, Image.Image]:
         "lota": _lota(),
         "pots": _pot_stack(),
         "goat": _goat(),
+        "trunk": _trunk(),
         "plant": _plant(True),
         "plant2": _plant(False),
         "broom": _broom(),

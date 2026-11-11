@@ -383,7 +383,8 @@ def build_grid() -> list[str]:
     # Bottom-left stays open for the thumbstick. The stall sits to its right,
     # inside the opening view, off the push row (y=8) and the guard's south line.
     # The bench is the two tiles just east of the counter, not on the walkway above it.
-    carve(8, 10, 5, 1, "T")
+    # Three tiles, so the plank counter ends at the right awning post.
+    carve(8, 10, 3, 1, "T")
     g[10][14] = "C"
     g[10][15] = "C"
     g[10][16] = "C"

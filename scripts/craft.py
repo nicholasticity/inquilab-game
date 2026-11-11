@@ -1430,35 +1430,16 @@ def stall() -> Image.Image:
 
 
 def kolam(px, cx: int, cy: int, mw: int, mh: int) -> None:
-    """A 2-tile kolam in rice flour and saffron. Flat on the stone, no glow."""
-    for gy in range(-3, 4):
-        for gx in range(-3, 4):
-            x, y = cx + gx * 8, cy + gy * 8
+    """Rice-flour dots, about two tiles across. No frame and no corner brackets."""
+    for gy in range(-4, 5):
+        for gx in range(-4, 5):
+            if abs(gx) + abs(gy) > 4:
+                continue
+            if abs(gx) + abs(gy) == 2 and (gx + gy) % 2:
+                continue
+            x, y = cx + gx * 6, cy + gy * 6
             put(px, x, y, F, mw, mh)
             put(px, x + 1, y, F, mw, mh)
-    for i in range(29):
-        put(px, cx - 28 + i, cy - 28, SL, mw, mh)
-        put(px, cx - 28 + i, cy + 28, SL, mw, mh)
-        put(px, cx - 28, cy - 28 + i, SL, mw, mh)
-        put(px, cx + 28, cy - 28 + i, SL, mw, mh)
-    for i in range(25):
-        put(px, cx + i, cy - (24 - i), SF, mw, mh)
-        put(px, cx - i, cy - (24 - i), SF, mw, mh)
-        put(px, cx + i, cy + (24 - i), SF, mw, mh)
-        put(px, cx - i, cy + (24 - i), SF, mw, mh)
-    for i in range(13):
-        put(px, cx - 12 + i, cy - 12, Y, mw, mh)
-        put(px, cx - 12 + i, cy + 12, Y, mw, mh)
-        put(px, cx - 12, cy - 12 + i, Y, mw, mh)
-        put(px, cx + 12, cy - 12 + i, Y, mw, mh)
-    for i in range(-8, 9):
-        put(px, cx + i, cy, F, mw, mh)
-        put(px, cx, cy + i, F, mw, mh)
-    for dx, dy in ((-16, 0), (16, 0), (0, -16), (0, 16)):
-        for k in range(-3, 4):
-            put(px, cx + dx + k, cy + dy, SA, mw, mh)
-            put(px, cx + dx, cy + dy + k, SA, mw, mh)
-    put(px, cx, cy, Y, mw, mh)
 
 
 def dhurrie(px, x0: int, y0: int, w: int, h: int, mw: int, mh: int) -> None:
