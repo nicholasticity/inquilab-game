@@ -1,0 +1,10 @@
+The PNGs in this directory are derived from Liberated Pixel Cup art.
+
+Character layers: Universal LPC Spritesheet Character Generator
+https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
+CC-BY-SA 3.0 / GPL 3.0
+
+Tiles and props: OpenGameArt LPC walls, floors, windows & doors, and the LPC base assets.
+See the credit files in credits/ and the project CREDITS.md.
+
+You must keep these credits and share adaptations under CC-BY-SA 3.0 (floors: CC-BY-SA 4.0) or GPL 3.0, matching the source work you build on.

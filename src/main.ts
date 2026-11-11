@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import { Yard } from "./scene";
 
-const GAME_W = 320;
-const GAME_H = 180;
+const GAME_W = 640;
+const GAME_H = 360;
 
 function fit(): void {
   const canvas = document.querySelector("#game canvas") as HTMLCanvasElement | null;
