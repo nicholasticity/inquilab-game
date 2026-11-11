@@ -3,7 +3,8 @@
 
 Sources (see CREDITS.md):
 - Universal LPC Spritesheet Character Generator (CC-BY-SA 3.0 / GPL 3.0)
-- OpenGameArt LPC walls and floors. Props on the court are original drawings.
+- LPC walls, windows, containers, tavern, decorations, food, and birds.
+  scripts/kitbash.py recolours those crops onto the court palette.
 """
 
 from __future__ import annotations

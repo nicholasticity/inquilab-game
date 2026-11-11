@@ -84,29 +84,31 @@ export function makeSpark(): Pix {
 }
 
 export function makeLeaflet(): Pix {
-  const p = new Pix(14, 16);
-  p.fillRect(1, 1, 12, 14, 7);
-  p.fillRect(2, 3, 8, 1, 2);
-  p.fillRect(2, 6, 9, 1, 3);
-  p.fillRect(2, 8, 7, 1, 3);
-  p.fillRect(2, 10, 8, 1, 3);
-  p.force(11, 1, 6);
-  p.force(12, 2, 6);
+  const p = new Pix(20, 26);
+  p.fillRect(1, 1, 16, 23, CREAM);
+  p.fillRect(2, 2, 14, 21, PAPER);
+  for (const y of [6, 9, 12, 15, 18]) p.fillRect(4, y, y === 18 ? 8 : 11, 1, UMBER);
+  p.force(14, 1, BRASS);
+  p.force(15, 1, BRASS);
+  p.force(15, 2, BRASS);
+  p.force(16, 2, UMBER);
+  p.force(16, 3, UMBER);
   return p;
 }
 
 export function makeArrow(): Pix {
-  const p = new Pix(16, 20);
-  for (let y = 0; y < 8; y++) {
+  // A filled arrow pointing down. Shaft, then a solid head.
+  const p = new Pix(16, 24);
+  for (let y = 0; y < 11; y++) {
+    p.force(6, y, YELLOW);
     p.force(7, y, YELLOW);
     p.force(8, y, BRASS);
+    p.force(9, y, BRASS);
   }
   for (let i = 0; i < 8; i++) {
-    p.force(7 - i, 8 + i, YELLOW);
-    p.force(8 + i, 8 + i, YELLOW);
-    if (8 + i + 1 < 20) {
-      p.force(7 - i, 9 + i, BRASS);
-      p.force(8 + i, 9 + i, BRASS);
+    for (let x = 7 - i; x <= 8 + i; x++) {
+      if (x < 0 || x > 15) continue;
+      p.force(x, 11 + i, x <= 7 ? YELLOW : BRASS);
     }
   }
   return p;
@@ -145,22 +147,19 @@ export function makeKnob(): Pix {
 }
 
 export function makeEye(): Pix {
-  const p = new Pix(16, 12);
-  for (let x = 2; x <= 13; x++) {
-    p.force(x, 2, INK);
-    p.force(x, 9, INK);
+  const p = new Pix(32, 24);
+  for (let x = 4; x <= 27; x++) {
+    p.force(x, 4, INK);
+    p.force(x, 19, INK);
   }
-  for (let y = 3; y <= 8; y++) {
-    p.force(2, y, INK);
-    p.force(13, y, INK);
-    for (let x = 3; x <= 12; x++) p.force(x, y, CREAM);
+  for (let y = 5; y <= 18; y++) {
+    p.force(4, y, INK);
+    p.force(27, y, INK);
+    for (let x = 5; x <= 26; x++) p.force(x, y, CREAM);
   }
-  p.force(3, 3, INK);
-  p.force(12, 3, INK);
-  p.force(3, 8, INK);
-  p.force(12, 8, INK);
-  for (let y = 4; y <= 7; y++) for (let x = 6; x <= 9; x++) p.force(x, y, INK);
-  p.force(7, 5, YELLOW);
+  for (let y = 8; y <= 15; y++) for (let x = 12; x <= 19; x++) p.force(x, y, INK);
+  p.force(14, 10, YELLOW);
+  p.force(15, 10, YELLOW);
   return p;
 }
 

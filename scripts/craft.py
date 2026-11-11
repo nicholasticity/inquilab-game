@@ -880,23 +880,24 @@ def bars() -> Image.Image:
 
 
 def plate(floor: Image.Image) -> Image.Image:
+    """A round iron plate with a brass rim. The floor shows around it."""
     im = floor.copy()
     px = im.load()
-    for y in range(4, 28):
-        for x in range(4, 28):
-            rim = x in (4, 5, 26, 27) or y in (4, 5, 26, 27)
-            if rim:
-                px[x, y] = LH if x < 8 or y < 8 else P if x > 23 or y > 23 else R
+    cx, cy = 16, 17
+    for y in range(32):
+        for x in range(32):
+            dx = x - cx
+            dy = (y - cy) * 1.15
+            d = (dx * dx + dy * dy) ** 0.5
+            if d > 11:
+                continue
+            if d > 9.2:
+                px[x, y] = BH if x < cx and y < cy else BD if d > 10.2 else BL
+            elif d > 8.2:
+                px[x, y] = BR
             else:
-                px[x, y] = P if (x + y) % 7 else R
-    # Saffron mark: a small hand-drawn chakra, not a diamond.
-    blit(im, [
-        "  uuu  ",
-        " u   u ",
-        "u  *  u",
-        " u   u ",
-        "  uuu  ",
-    ], 12, 13)
+                px[x, y] = L if x < cx - 2 and y < cy else P
+    blit(im, ["  uu  ", " u**u ", "u*tt*u", " u**u ", "  uu  "], 12, 14)
     return im
 
 
@@ -1515,18 +1516,24 @@ def paint_map(rows: list[str]) -> Image.Image:
             elif cell in floorish:
                 world.paste(floor_tile((x + y) % 4, crack=(x, y) in {(5, 7), (11, 9), (18, 6), (27, 10)}), (x * tile, y * tile))
             else:
-                south = ch(x, y + 1) in floorish
-                north = ch(x, y - 1) in floorish
-                if y == 0 or (north and not south):
-                    im = brick_cap((x + y) % 8)
-                elif south:
-                    im = brick_plinth((x * 2 + y) % 8)
+                from kitbash import quoin as stone_quoin
+                from kitbash import wall as stone_wall
+
+                above = ch(x, y - 1) not in floorish
+                below = ch(x, y + 1) in floorish
+                two_up = ch(x, y - 2) not in floorish
+                if y == 0 or not above:
+                    im = stone_wall("parapet", x)
+                elif y == 1 or not two_up:
+                    im = stone_wall("cornice", x)
+                elif below:
+                    im = stone_wall("plinth", x)
                 else:
-                    im = brick_face((x + 3 * y) % 8)
+                    im = stone_wall("face", x)
                 if ch(x + 1, y) in floorish:
-                    im = side_quoin(im, "e")
+                    im = stone_quoin(im, "e")
                 elif ch(x - 1, y) in floorish:
-                    im = side_quoin(im, "w")
+                    im = stone_quoin(im, "w")
                 world.paste(im, (x * tile, y * tile))
 
     wp = world.load()
@@ -1535,12 +1542,14 @@ def paint_map(rows: list[str]) -> Image.Image:
         for x, cell in enumerate(row):
             if cell not in floorish or ch(x, y - 1) in floorish:
                 continue
-            for yy in range(4):
+            for yy in range(2):
                 for xx in range(tile):
+                    if yy == 1 and (xx + x) % 2:
+                        continue
                     px_x, px_y = x * tile + xx, y * tile + yy
                     r, g, b, a = wp[px_x, px_y]
-                    shift = 36 - yy * 8
-                    wp[px_x, px_y] = nearest((max(0, r - shift), max(0, g - shift + 6), max(0, b - 4))) + (a,)
+                    shift = 22 - yy * 8
+                    wp[px_x, px_y] = nearest((max(0, r - shift), max(0, g - shift + 4), max(0, b - 2))) + (a,)
 
     def arch(tx: int, ty: int, blind: bool) -> None:
         left, top = tx * tile, ty * tile
@@ -1550,10 +1559,10 @@ def paint_map(rows: list[str]) -> Image.Image:
                 c = S8 if t > 3 else S7 if t else S6
                 put(wp, left + t, y, c, world.width, world.height)
                 put(wp, left + 31 - t, y, S5 if t == 0 else S6, world.width, world.height)
-        # Voussoirs across a pointed arch.
+        # Voussoirs across a horseshoe arch, so the niche is not a triangle.
         for x in range(left + 6, left + 26):
             ad = abs(x - (left + 16))
-            rise = [18, 17, 16, 14, 12, 10, 8, 6, 5, 4][min(9, ad)]
+            rise = int((max(0, 100 - ad * ad)) ** 0.5 * 1.7)
             for t in range(5):
                 c = S8 if t == 0 else S5 if t == 4 else S7 if (x // 3) % 2 == 0 else S6
                 put(wp, x, top - rise + t, c, world.width, world.height)
@@ -1563,26 +1572,30 @@ def paint_map(rows: list[str]) -> Image.Image:
 
     arch(33, 5, False)
     arch(33, 9, False)
-    for tx in (6, 19, 30):
+    for tx in (1, 19, 30):
         arch(tx, 3, True)
 
-    paste(world, jharokha(), (2 * tile, 2 * tile - 6))
-    paste(world, jharokha(), (28 * tile - 8, 2 * tile - 6))
-    paste(world, jaali(), (22 * tile - 2, 2 * tile + 6))
-    paste(world, notice(), (7 * tile, 2 * tile + 2))
+    from kitbash import build as kit_build
+
+    kit = kit_build()
+    # The jharokha is a sprite so its brackets hang into the court.
+    paste(world, kit["jaali"], (22 * tile - 4, 2 * tile))
+    paste(world, kit["door"], (26 * tile - 4, 2 * tile + 8))
+    paste(world, kit["door"], (31 * tile - 2, 2 * tile + 8))
+    paste(world, kit["ledge"], (8, tile + 18))
+    paste(world, kit["ledge"], (15 * tile + 8, tile + 18))
+    paste(world, notice(), (7 * tile - 8, 2 * tile + 2))
     paste(world, notice(), (38 * tile, 8 * tile + 4))
     paste(world, poster(), (16 * tile - 4, 2 * tile + 4))
-    paste(world, shopfront(), (26 * tile - 8, 2 * tile + 4))
-    paste(world, shopfront(), (31 * tile - 6, 2 * tile + 4))
 
     # Plaster behind the graffiti so the words sit on a wall, not on raw brick.
     for y in range(3 * tile + 4, 3 * tile + 22):
-        for x in range(12 * tile, 12 * tile + 78):
+        for x in range(24 * tile, 24 * tile + 78):
             if (x + y) % 9 == 0:
                 wp[x, y] = S6
             else:
-                wp[x, y] = S7 if x < 12 * tile + 50 else S6
-    _text(world, "CHALO DILLI", 12 * tile + 4, 3 * tile + 8, X, 2)
+                wp[x, y] = S7 if x < 24 * tile + 50 else S6
+    _text(world, "CHALO DILLI", 24 * tile + 4, 3 * tile + 8, X, 2)
 
     kolam(wp, 6 * tile + 16, 6 * tile + 12, world.width, world.height)
     kolam(wp, 12 * tile + 16, 7 * tile + 18, world.width, world.height)
@@ -1650,49 +1663,19 @@ def _light(world: Image.Image, rows: list[str]) -> None:
 
 
 def save_props(out: Path) -> None:
+    from kitbash import build as kit_build
+
     out.mkdir(parents=True, exist_ok=True)
-    MATKA.save(out / "matka.png")
-    SACK.save(out / "sack.png")
-    TULSI.save(out / "tulsi.png")
-    KETTLE.save(out / "kettle.png")
-    KULHAD.save(out / "kulhad.png")
-    BELL.save(out / "bell.png")
-    LANTERN.save(out / "lantern.png")
-    LANTERN_B.save(out / "lantern-b.png")
-    DIYA.save(out / "diya.png")
-    DIYA_B.save(out / "diya-b.png")
-    PEBBLE.save(out / "pebble.png")
-    PIGEON.save(out / "pigeon.png")
-    PIGEON_B.save(out / "pigeon-b.png")
-    for i, fr in enumerate(STEAM):
-        fr.save(out / f"steam{i}.png")
-    _cloth((D, F, FW), 0).save(out / "laundry.png")
-    _cloth((D, F, FW), 1).save(out / "laundry-b.png")
-    _cloth((SA, SF, SL), 0).save(out / "laundry-s.png")
-    _cloth((SA, SF, SL), 1).save(out / "laundry-s2.png")
-    _cloth((G, GD, GL), 0).save(out / "laundry-g.png")
-    _cloth((G, GD, GL), 1).save(out / "laundry-g2.png")
-    trunk().save(out / "crate.png")
-    bench().save(out / "bench.png")
-    pillar().save(out / "pillar.png")
-    door().save(out / "door.png")
+    for name, im in kit_build().items():
+        im.save(out / f"{name}.png")
+    # The gate, the grate, the notices, and the cot stay as story props.
     press().save(out / "press.png")
     bars().save(out / "grate.png")
     rune().save(out / "rune.png")
-    shadow().save(out / "shadow.png")
-    glow().save(out / "glow.png")
     mote().save(out / "mote.png")
-    bicycle().save(out / "bicycle.png")
-    thela().save(out / "tonga.png")
-    well().save(out / "well.png")
     charpoy().save(out / "charpoy.png")
-    jharokha().save(out / "jharokha.png")
-    shopfront().save(out / "stall-front.png")  # shop is baked; this is for review
-    jaali().save(out / "jaali.png")
     notice().save(out / "notice.png")
     poster().save(out / "poster.png")
-    stall().save(out / "stall.png")
-    floor_tile(0)
     plate(floor_tile(0)).save(out / "plate.png")
 
 

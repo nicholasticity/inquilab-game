@@ -201,16 +201,14 @@ export class Yard extends Phaser.Scene {
     image("press");
     image("bell");
     image("diya");
-    image("laundry2", "laundry-s");
-    image("laundry2b", "laundry-s2");
-    image("laundry3", "laundry-g");
-    image("laundry3b", "laundry-g2");
     image("diya2", "diya-b");
     image("steam0");
     image("steam1");
     image("steam2");
     image("pigeon");
     image("pigeon2", "pigeon-b");
+    image("pigeon3", "pigeon-c");
+    image("jharokha");
     image("glow");
     image("mote");
     for (const id of ["kite", "veil", "key"] as const) image(`port-${id}`, `port-${id}`);
@@ -266,9 +264,9 @@ export class Yard extends Phaser.Scene {
     this.grate = this.world(this.add.image(grateAt.x, grateAt.y + 12, "grate").setOrigin(0.5, 1).setDepth(grateAt.y));
     this.gate = this.world(this.add.image(GATE.x * TILE + 16, GATE.y * TILE - 4, "door").setOrigin(0.5, 0));
     const leafAt = anchor(LEAF.x, LEAF.y);
-    this.leaf = this.world(this.add.image(leafAt.x, leafAt.y - 10, "leaflet").setOrigin(0.5, 0.5).setScale(2));
+    this.leaf = this.world(this.add.image(leafAt.x, leafAt.y - 10, "leaflet").setOrigin(0.5, 0.5));
     const bell = this.bellPoint();
-    this.bell = this.world(this.add.image(bell.x, bell.y - 16, "bell").setOrigin(0.5, 0).setScale(2));
+    this.bell = this.world(this.add.image(bell.x, bell.y - 8, "bell").setOrigin(0.5, 0));
 
     const spawn = anchor(SPAWN.x, SPAWN.y);
     this.px = spawn.x;
@@ -278,11 +276,11 @@ export class Yard extends Phaser.Scene {
     this.player = this.world(this.add.sprite(this.px, this.py, "kite", rowOf("right") * FRAMES).setOrigin(0.5, 1));
     this.guard = this.world(this.add.sprite(this.gx, this.gy, "guard", rowOf("right") * FRAMES).setOrigin(0.5, 1));
     this.mark = this.world(this.add.image(this.gx, this.gy - 52, "qmark").setOrigin(0.5, 1).setVisible(false));
-    this.pebbleShadow = this.world(this.add.image(0, 0, "shadow").setVisible(false).setScale(0.28).setAlpha(0.55));
-    this.pebbleImg = this.world(this.add.image(0, 0, "pebble").setVisible(false).setScale(2).setDepth(2000));
+    this.pebbleShadow = this.world(this.add.image(0, 0, "shadow").setVisible(false).setAlpha(0.55));
+    this.pebbleImg = this.world(this.add.image(0, 0, "pebble").setVisible(false).setDepth(2000));
     this.oShadow = this.world(this.add.image(this.ox, this.oy, "shadow").setOrigin(0.5, 0.5).setAlpha(0.5));
     this.officer = this.world(this.add.sprite(this.ox, this.oy, "officer", rowOf("right") * FRAMES).setOrigin(0.5, 1));
-    this.hint = this.world(this.add.image(PLATE.x * TILE + 16, PLATE.y * TILE - 18, "arrow").setOrigin(0.5, 1).setScale(1.5));
+    this.hint = this.world(this.add.image(PLATE.x * TILE + 16, PLATE.y * TILE - 28, "arrow").setOrigin(0.5, 1));
 
     this.chrome = this.hud(this.add.graphics().setDepth(5800));
     this.flash = this.hud(this.add.image(0, 0, "px").setTint(0xa83838).setAlpha(0).setDepth(8000));
@@ -291,10 +289,10 @@ export class Yard extends Phaser.Scene {
     this.arrow = this.hud(this.add.image(0, 0, "arrow").setDepth(7100));
     this.dim = this.hud(this.add.image(0, 0, "px").setTint(0x140e0c).setAlpha(0.62).setDepth(7150).setVisible(false));
     this.itemBox = this.hud(this.add.image(0, 0, "itemcard").setDepth(7200).setVisible(false));
-    this.itemIcon = this.hud(this.add.image(0, 0, "leaflet").setScale(2).setDepth(7210).setVisible(false));
+    this.itemIcon = this.hud(this.add.image(0, 0, "leaflet").setDepth(7210).setVisible(false));
     this.stickImg = this.hud(this.add.image(0, 0, "stick").setDepth(6400).setAlpha(0.86));
     this.stickKnob = this.hud(this.add.image(0, 0, "knob").setDepth(6410).setAlpha(0.96));
-    this.marker = this.hud(this.add.image(0, 0, "eye").setDepth(6600).setScale(2).setVisible(false));
+    this.marker = this.hud(this.add.image(0, 0, "eye").setDepth(6600).setVisible(false));
     this.caption = this.hud(this.add.image(0, 0, "caption").setOrigin(0.5, 0).setDepth(6200));
     this.leafletIcon = this.hud(this.add.image(0, 0, "leaflet").setDepth(6000));
     this.leafletCount = this.hud(this.add.image(0, 0, "count0").setDepth(6000));
@@ -355,7 +353,7 @@ export class Yard extends Phaser.Scene {
     this.stickKnob.setPosition(f.stickX, f.stickY);
     this.caption.setPosition(f.captionX, f.captionY);
     for (let i = 0; i < 3; i++) this.heartsImg[i].setPosition(f.viewX + 8 + i * 18, f.viewY - 22);
-    this.leafletIcon.setPosition(f.viewX + f.viewW - 36, f.viewY - 16).setScale(1.1);
+    this.leafletIcon.setPosition(f.viewX + f.viewW - 36, f.viewY - 16);
     this.leafletCount.setPosition(f.viewX + f.viewW - 16, f.viewY - 20);
     this.ports.forEach((port, i) => {
       const at = f.ports[i];
@@ -374,58 +372,64 @@ export class Yard extends Phaser.Scene {
   }
 
   private dressCourt(): void {
-    const drop = (key: string, tx: number, ty: number, scale = 1, ox = 0.5, oy = 1) => {
+    const drop = (key: string, tx: number, ty: number, ox = 0.5, oy = 1) => {
       const at = anchor(tx, ty);
-      const img = this.world(this.add.image(at.x, at.y + 2, key).setOrigin(ox, oy).setScale(scale).setDepth(at.y));
-      this.world(this.add.image(at.x, at.y, "shadow").setOrigin(0.5, 0.5).setScale(0.5 * scale).setAlpha(0.4).setDepth(at.y - 2));
+      const img = this.world(this.add.image(at.x, at.y + 2, key).setOrigin(ox, oy).setDepth(at.y));
+      this.world(this.add.image(at.x, at.y, "shadow").setOrigin(0.5, 0.5).setAlpha(0.45).setDepth(at.y - 2));
       return img;
     };
-    this.world(this.add.image(WELL.x * TILE, WELL.y * TILE, "well").setOrigin(0, 0).setDepth((WELL.y + 2) * TILE));
-    this.world(this.add.image(WELL.x * TILE + 32, (WELL.y + 2) * TILE - 4, "shadow").setOrigin(0.5, 0.5).setScale(1.1).setAlpha(0.35).setDepth((WELL.y + 2) * TILE - 2));
-    drop("matka", 8, 5, 1);
-    drop("sack", 9, 5, 1);
-    drop("tulsi", 6, 4, 1);
-    drop("matka", 10, 4, 1);
-    drop("tulsi", 14, 4, 1);
-    drop("matka", 7, 9, 1);
-    drop("sack", 7, 10, 1);
-    drop("tulsi", 28, 6, 1);
-    drop("tulsi", 22, 10, 1);
-    drop("pillar", 12, 6, 1);
+    const glowAt = (x: number, y: number) => {
+      const glow = this.world(this.add.image(x, y, "glow").setOrigin(0.5, 0.6).setAlpha(0.55).setDepth(2));
+      glow.setBlendMode(Phaser.BlendModes.ADD);
+      this.glows.push(glow);
+    };
+    this.world(this.add.image(WELL.x * TILE, WELL.y * TILE + 8, "well").setOrigin(0, 0).setDepth((WELL.y + 2) * TILE));
+    drop("matka", 8, 5);
+    drop("sack", 9, 5);
+    drop("tulsi", 6, 4);
+    drop("matka", 10, 4);
+    drop("tulsi", 14, 4);
+    drop("matka", 7, 9);
+    drop("sack", 7, 10);
+    drop("tulsi", 28, 6);
+    drop("tulsi", 22, 10);
+    drop("pillar", 12, 6);
     const bike = anchor(BICYCLE.x, BICYCLE.y);
-    this.world(this.add.image(bike.x + 4, bike.y, "bicycle").setOrigin(0.35, 1).setScale(1).setDepth(bike.y));
-    this.world(this.add.image(bike.x + 6, bike.y - 2, "shadow").setOrigin(0.5, 0.5).setScale(0.75).setAlpha(0.4).setDepth(bike.y - 2));
+    this.world(this.add.image(bike.x + 4, bike.y, "bicycle").setOrigin(0.35, 1).setDepth(bike.y));
     const cotY = 10 * TILE + 18;
     this.world(this.add.image(16 * TILE + 2, cotY, "charpoy").setOrigin(0, 1).setDepth(cotY));
-    this.world(this.add.image(16 * TILE + 28, cotY - 2, "shadow").setOrigin(0.5, 0.5).setScale(0.9).setAlpha(0.35).setDepth(cotY - 2));
     this.world(this.add.image(TONGA.x * TILE - 2, (TONGA.y + 1) * TILE, "tonga").setOrigin(0, 1).setDepth((TONGA.y + 1) * TILE));
-    this.world(this.add.image(TONGA.x * TILE + 30, (TONGA.y + 1) * TILE - 2, "shadow").setOrigin(0.5, 0.5).setScale(1.2).setAlpha(0.35).setDepth((TONGA.y + 1) * TILE - 2));
     const stallY = 11 * TILE;
     this.world(this.add.image(8 * TILE + 2, stallY, "stall").setOrigin(0, 1).setDepth(stallY));
-    this.world(this.add.image(14 * TILE + 20, 10 * TILE + 16, "bench").setOrigin(0.5, 1).setScale(1).setDepth(10 * TILE + 16));
-    this.world(this.add.image(14 * TILE + 20, 10 * TILE + 14, "shadow").setOrigin(0.5, 0.5).setScale(1.05).setAlpha(0.35).setDepth(10 * TILE));
-    drop("press", 35, 6, 1);
-    drop("sack", 37, 6, 1);
-    drop("matka", 35, 9, 1);
+    this.world(this.add.image(14 * TILE + 20, 10 * TILE + 16, "bench").setOrigin(0.5, 1).setDepth(10 * TILE + 16));
+    drop("press", 35, 6);
+    drop("sack", 37, 6);
+    drop("matka", 35, 9);
+    // Bracketed jharokhas. The sill hangs into the yard, so the player can walk in front of it.
+    for (const x of [9 * TILE + 16, 17 * TILE]) {
+      const y = 4 * TILE + 8;
+      this.world(this.add.image(x, y, "jharokha").setOrigin(0, 1).setDepth(y));
+    }
     for (const x of [6, 19, 22, 30]) {
       const lx = x * TILE + 16;
-      this.lanterns.push(this.world(this.add.image(lx, 2 * TILE + 4, "lantern").setOrigin(0.5, 0).setScale(2).setDepth(3 * TILE)));
-      this.glows.push(this.world(this.add.image(lx, 4 * TILE + 10, "glow").setOrigin(0.5, 0.4).setAlpha(0.55).setDepth(1)));
+      this.lanterns.push(this.world(this.add.image(lx, TILE + 8, "lantern").setOrigin(0.5, 0).setDepth(3 * TILE)));
+      glowAt(lx, 3 * TILE + 8);
     }
     for (const [x, y] of [[8, 4], [27, 4], [36, 4], [36, 9]] as const) {
-      this.diyas.push(this.world(this.add.image(x * TILE + 16, y * TILE + 8, "diya").setOrigin(0.5, 1).setScale(2).setDepth((y + 1) * TILE)));
-      this.glows.push(this.world(this.add.image(x * TILE + 16, y * TILE + 6, "glow").setOrigin(0.5, 0.5).setAlpha(0.4).setDepth(1)));
+      this.diyas.push(this.world(this.add.image(x * TILE + 16, y * TILE + 8, "diya").setOrigin(0.5, 1).setDepth((y + 1) * TILE)));
+      glowAt(x * TILE + 16, y * TILE + 4);
     }
-    const cloths = ["laundry", "laundry2", "laundry3", "laundry"];
-    [5, 25, 18, 27].forEach((x, i) => {
-      const cloth = this.world(this.add.image(x * TILE + 8, 3 * TILE + 2, cloths[i]).setOrigin(0.5, 0).setDepth(4 * TILE));
-      cloth.setData("base", cloths[i]);
+    for (const x of [70, 20 * TILE]) {
+      const cloth = this.world(this.add.image(x, 2 * TILE + 4, "laundry").setOrigin(0, 0).setDepth(4 * TILE));
+      cloth.setData("base", "laundry");
       this.laundry.push(cloth);
-    });
-    // Kettle sits in the stall sprite. Steam rises from that spot.
-    this.steam = this.world(this.add.image(8 * TILE + 58, 11 * TILE - 70, "steam0").setOrigin(0.5, 1).setDepth(11 * TILE - 20));
-    for (const [x, y] of [[90, 28], [540, 34]] as const) {
-      const bird = this.world(this.add.image(x, y, "pigeon").setOrigin(0.5, 1).setScale(2).setDepth(y));
+    }
+    // Steam climbs off the degchi on the left of the stall counter.
+    this.steam = this.world(this.add.image(8 * TILE + 36, 11 * TILE - 52, "steam0").setOrigin(0.5, 1).setDepth(11 * TILE));
+    // Two birds on the left ledge, one on the ledge further along the wall.
+    for (const x of [24, 48, 15 * TILE + 28]) {
+      const y = TILE + 30;
+      const bird = this.world(this.add.image(x, y, "pigeon").setOrigin(0.5, 1).setDepth(y + 8));
       bird.setData("home", y);
       this.pigeons.push(bird);
     }
@@ -688,7 +692,7 @@ export class Yard extends Phaser.Scene {
     this.itemUp = true;
     this.dim.setVisible(true).setAlpha(0.62);
     this.itemBox.setVisible(true).setScale(0.72);
-    this.itemIcon.setVisible(true).setScale(1.2);
+    this.itemIcon.setVisible(true);
     this.tweens.add({ targets: this.itemBox, scale: 1, duration: 180, ease: "Back.Out" });
     this.tweens.add({ targets: this.itemIcon, scale: 2.6, duration: 180, ease: "Back.Out" });
     this.sfx.jingle();
@@ -1114,7 +1118,7 @@ export class Yard extends Phaser.Scene {
 
   private burst(x: number, y: number, n: number): void {
     for (let i = 0; i < n; i++) {
-      const s = this.world(this.add.image(x, y, "spark").setDepth(4000).setScale(1.4));
+      const s = this.world(this.add.image(x, y, "spark").setDepth(4000));
       const a = (Math.PI * 2 * i) / n;
       this.tweens.add({
         targets: s,
@@ -1129,7 +1133,7 @@ export class Yard extends Phaser.Scene {
 
   private puff(x: number, y: number, n = 4): void {
     for (let i = 0; i < n; i++) {
-      const s = this.world(this.add.image(x + (i - n / 2) * 4, y, "dust").setDepth(y).setScale(1.6));
+      const s = this.world(this.add.image(x + (i - n / 2) * 4, y, "dust").setDepth(y));
       this.tweens.add({
         targets: s,
         x: x + (i - n / 2) * 7,
@@ -1185,14 +1189,13 @@ export class Yard extends Phaser.Scene {
     return { x: this.px + dir * 16, y: this.py - 30 };
   }
 
-  private applyActor(img: Phaser.GameObjects.Sprite, kind: Kind, facing: Facing, col: number, x: number, y: number, moving: boolean): void {
+  private applyActor(img: Phaser.GameObjects.Sprite, kind: Kind, facing: Facing, col: number, x: number, y: number, _moving: boolean): void {
     const frame = rowOf(facing) * FRAMES + (col % FRAMES);
     if (img.texture.key !== kind) img.setTexture(kind, frame);
     else img.setFrame(frame);
     img.setPosition(Math.round(x), Math.round(y));
     img.setDepth(y);
-    const plant = moving && (col % FRAMES === 1 || col % FRAMES === 5);
-    img.setScale(plant ? 1.08 : 1, plant ? 0.9 : 1);
+    img.setScale(1);
   }
 
   update(_time: number, dtRaw: number): void {
@@ -1221,21 +1224,25 @@ export class Yard extends Phaser.Scene {
       const base = cloth.getData("base") as string;
       cloth.setTexture(tick % 2 === 0 ? base : `${base}b`);
     }
-    this.steam.setTexture(`steam${Math.floor(this.time.now / 140) % 3}`);
-    this.steam.setY(11 * TILE - 70 - (Math.floor(this.time.now / 140) % 3));
+    const steamFrame = Math.floor(this.time.now / 140) % 3;
+    this.steam.setTexture(`steam${steamFrame}`);
+    this.steam.setY(11 * TILE - 48 - steamFrame * 6);
+    const birdKeys = ["pigeon", "pigeon2", "pigeon3"];
     for (const bird of this.pigeons) {
-      bird.setTexture(Math.floor(this.time.now / 280 + bird.x) % 2 === 0 ? "pigeon" : "pigeon2");
-      bird.setY((bird.getData("home") as number) + Math.sin(this.time.now / 420 + bird.x) * 1);
+      const frame = Math.floor(this.time.now / 280 + bird.x) % 3;
+      bird.setTexture(birdKeys[frame]);
+      const peck = frame === 2 ? 3 : 0;
+      bird.setY((bird.getData("home") as number) + Math.sin(this.time.now / 320 + bird.x) * 3 + peck);
     }
     for (const mote of this.motes) {
       const t = this.time.now / 900 + (mote.getData("p") as number);
       mote.setPosition((mote.getData("homeX") as number) + Math.sin(t) * 8, (mote.getData("homeY") as number) + Math.cos(t * 0.8) * 5);
       mote.setAlpha(0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t * 3)));
     }
-    for (const glow of this.glows) glow.setAlpha(0.28 + 0.14 * Math.sin(this.time.now / 180 + glow.x));
+    for (const glow of this.glows) glow.setAlpha(0.16 + 0.34 * (0.5 + 0.5 * Math.sin(this.time.now / 180 + glow.x)));
     this.arrow.setVisible(this.talking && Math.floor(this.time.now / 400) % 2 === 0);
     if (!this.grateOpen) {
-      this.hint.setY(PLATE.y * TILE - 20 + Math.sin(this.time.now / 160) * 4);
+      this.hint.setY(PLATE.y * TILE - 36 + Math.sin(this.time.now / 160) * 8);
       this.rune.setAlpha(0.55 + Math.sin(this.time.now / 160) * 0.45);
     }
     if (this.flash.alpha > 0) this.flash.setAlpha(Math.max(0, this.flash.alpha - dt / 140));
@@ -1324,7 +1331,7 @@ export class Yard extends Phaser.Scene {
       const groundY = this.pebble.sy + (this.pebble.ty - this.pebble.sy) * t;
       const arc = Math.sin(t * Math.PI) * 72;
       this.pebbleImg.setPosition(x, groundY - arc).setVisible(true).setDepth(4000);
-      this.pebbleShadow.setPosition(x, groundY).setVisible(true).setScale(0.16 + (1 - arc / 72) * 0.14).setDepth(groundY - 1);
+      this.pebbleShadow.setPosition(x, groundY).setVisible(true).setAlpha(0.25 + (1 - arc / 72) * 0.4).setDepth(groundY - 1);
       if (t >= 1) this.landPebble();
     }
 
