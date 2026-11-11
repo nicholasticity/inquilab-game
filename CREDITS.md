@@ -1,6 +1,6 @@
 # Credits
 
-The courtyard is built from Liberated Pixel Cup art, recolored to one warm dusty palette. Characters are layered from the Universal LPC Spritesheet Character Generator. The floor is one LPC flagstone family. The walls are LPC red brick with a sandstone coping. The props on the court are original drawings at the same pixel size: a chai stall, clay matkas, jute sacks, brass lanterns, a thela, and a carved door.
+The courtyard is built on one 48-colour palette. Characters are layered from the Universal LPC Spritesheet Character Generator and recolored onto that palette, including the skin ramp, so they sit in the same light as the court. The walls, flagstones, and every prop are original pixel drawings in `scripts/craft.py`: running-bond brick with a sandstone parapet and plinth, flagstone slabs, a chai stall, clay matkas, jute sacks, brass lanterns, a thela, a well, a jharokha, and a carved door. The LPC wall and floor sheets are no longer baked into the map.
 
 Kite wears a cream kurta, brown waistcoat, and pyjama, with a small Gandhi cap drawn on the hair. Veil wears the Sara tunic and a saffron dupatta (the thin cloth headwrap plus the scarf). Her disguise is the tan tunic with the dupatta off. Key wears a cream kurta and a navy waistcoat. The constable's pagri is the cloth headwrap recolored red, with a short plume, khaki uniform, and the LPC cane as a lathi. The officer is the same khaki body with a pith helmet and red sash drawn on every walk frame.
 
@@ -20,9 +20,7 @@ Layers used: male and female bodies and heads, eyes, messy / long / parted hair,
 
 Full credit lists are copied into `public/assets/lpc/credits/`.
 
-- Walls. bluecarrot16 and the authors named in `credits/walls.txt`. CC-BY-SA 3.0. https://opengameart.org/content/lpc-walls
-- Floors. bluecarrot16 and the authors named in `credits/floors.txt`. CC-BY-SA 4.0. https://opengameart.org/content/lpc-floors
-- Windows and doors. bluecarrot16, Lanea Zimmerman (Sharm), Daniel Armstrong (HughSpectrum), and the authors named in `credits/windows-doors.txt`. CC-BY-SA 3.0 / GPL 3.0. https://opengameart.org/content/lpc-windows-doors
+- Walls, floors, windows, and doors from the LPC packs were the previous court's source. This build paints its own brick, flagstone, and wood. The credit files in `credits/` remain for that earlier derivation. bluecarrot16, Lanea Zimmerman (Sharm), Daniel Armstrong (HughSpectrum), and the authors named there. CC-BY-SA 3.0 / CC-BY-SA 4.0 / GPL 3.0. https://opengameart.org/content/lpc-walls https://opengameart.org/content/lpc-floors https://opengameart.org/content/lpc-windows-doors
 - LPC base assets. Lanea Zimmerman (Sharm), Daniel Armstrong (HughSpectrum), and other LPC contributors. CC-BY-SA 3.0 / GPL 3.0. https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles The baked court does not use the chest, barrel, lamp, or awning sprites from that pack. The trunk, stall, lanterns, and door are original.
 
 `scripts/bake_lpc.py` composites the character sheets and paints the map. The game loads the baked PNGs in `public/assets/lpc/`.
