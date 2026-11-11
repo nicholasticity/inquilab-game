@@ -1,11 +1,11 @@
 {
   "name": "Inquilab",
   "short_name": "Inquilab",
-  "description": "A 16-bit courtyard in 1930s Lahore. Tap to walk.",
+  "description": "A 16-bit courtyard in 1940s Lahore. Played in portrait.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
-  "orientation": "landscape",
+  "orientation": "portrait",
   "background_color": "#100c0e",
   "theme_color": "#100c0e"
 }

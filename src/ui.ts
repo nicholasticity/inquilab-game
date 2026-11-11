@@ -113,51 +113,81 @@ export function makeArrow(): Pix {
 }
 
 export function makeStickBase(): Pix {
-  const s = 104;
+  const s = 136;
   const p = new Pix(s, s);
   const c = (s - 1) / 2;
   for (let y = 0; y < s; y++) {
     for (let x = 0; x < s; x++) {
       const d = Math.hypot(x - c, y - c);
-      if (d <= 50 && d >= 40) p.force(x, y, d > 48 || d < 42 ? UMBER : BRASS);
+      if (d <= 66 && d >= 54) p.force(x, y, d > 64 || d < 56 ? UMBER : BRASS);
     }
   }
   for (let i = 0; i < 8; i++) {
     const a = (Math.PI * 2 * i) / 8;
-    p.force(Math.round(c + Math.cos(a) * 45), Math.round(c + Math.sin(a) * 45), CREAM);
+    p.force(Math.round(c + Math.cos(a) * 60), Math.round(c + Math.sin(a) * 60), CREAM);
   }
   return p;
 }
 
 export function makeKnob(): Pix {
-  const s = 26;
+  const s = 28;
   const p = new Pix(s, s);
   const c = (s - 1) / 2;
   for (let y = 0; y < s; y++) {
     for (let x = 0; x < s; x++) {
       const d = Math.hypot(x - c, y - c);
-      if (d > 11) continue;
+      if (d > 12) continue;
       const hi = d < 5 && x < c && y < c;
-      p.force(x, y, d > 9.5 ? UMBER : hi ? 15 : BRASS);
+      p.force(x, y, d > 10.5 ? UMBER : hi ? 15 : BRASS);
     }
   }
   return p;
 }
 
-export function makeItemCard(): Pix {
-  const w = 460;
-  const h = 108;
-  const p = new Pix(w, h);
-  p.fillRect(0, 0, w, h, INK);
-  p.fillRect(4, 4, w - 8, h - 8, RED);
-  p.fillRect(8, 8, w - 16, h - 16, 1);
-  drawBig(p, "ITEM GET", 118, 22, YELLOW);
-  drawBig(p, "Coded leaflet", 118, 58, CREAM);
+export function makeEye(): Pix {
+  const p = new Pix(16, 12);
+  for (let x = 2; x <= 13; x++) {
+    p.force(x, 2, INK);
+    p.force(x, 9, INK);
+  }
+  for (let y = 3; y <= 8; y++) {
+    p.force(2, y, INK);
+    p.force(13, y, INK);
+    for (let x = 3; x <= 12; x++) p.force(x, y, CREAM);
+  }
+  p.force(3, 3, INK);
+  p.force(12, 3, INK);
+  p.force(3, 8, INK);
+  p.force(12, 8, INK);
+  for (let y = 4; y <= 7; y++) for (let x = 6; x <= 9; x++) p.force(x, y, INK);
+  p.force(7, 5, YELLOW);
   return p;
 }
 
-export function makeBox(lines: string[], title?: string): Pix {
-  const width = 560;
+export function makeDigit(ch: string): Pix {
+  const p = new Pix(8, 9);
+  drawText(p, ch, 1, 1, CREAM);
+  return p;
+}
+
+export function makeCaption(text: string): Pix {
+  const p = new Pix(measure(text) + 1, 8);
+  drawText(p, text, 0, 0, CREAM);
+  return p;
+}
+
+export function makeItemCard(width = 300): Pix {
+  const h = 92;
+  const p = new Pix(width, h);
+  p.fillRect(0, 0, width, h, INK);
+  p.fillRect(3, 3, width - 6, h - 6, RED);
+  p.fillRect(6, 6, width - 12, h - 12, 1);
+  drawBig(p, "ITEM GET", 72, 16, YELLOW);
+  drawBig(p, "Coded leaflet", 72, 48, CREAM);
+  return p;
+}
+
+export function makeBox(lines: string[], title?: string, width = 328): Pix {
   const lineH = 16;
   const height = 16 + lines.length * lineH + (title ? 20 : 0) + 12;
   const p = new Pix(width, Math.max(52, height));
@@ -166,11 +196,11 @@ export function makeBox(lines: string[], title?: string): Pix {
   p.fillRect(5, 5, width - 10, p.h - 10, PAPER);
   let ty = 12;
   if (title) {
-    drawBig(p, title, 16, ty, 16);
+    drawBig(p, title, 12, ty, 16);
     ty += 20;
   }
   for (const line of lines) {
-    drawBig(p, line, title ? 16 : 56, ty, INK);
+    drawBig(p, line, 12, ty, INK);
     ty += lineH;
   }
   return p;

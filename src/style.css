@@ -4,6 +4,10 @@
   --cream: #f6e6c8;
   --sand: #e6c79a;
   --brass: #c4a04a;
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
 }
 
 * { box-sizing: border-box; }
@@ -67,6 +71,7 @@ html, body {
   height: 90px;
   border: 4px solid var(--sand);
   position: relative;
+  image-rendering: pixelated;
 }
 
 .phone span {
@@ -78,6 +83,6 @@ html, body {
   background: var(--brass);
 }
 
-@media (orientation: portrait) {
+@media (orientation: landscape) {
   #rotate { display: flex; }
 }

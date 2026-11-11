@@ -366,7 +366,7 @@ def build_grid() -> list[str]:
     g[9][33] = "K"
     g[5][36] = "L"
     g[9][36] = "S"
-    g[2][24] = "B"
+    g[2][11] = "B"
     g[6][3] = "@"
     g[8][15] = "+"
     g[8][22] = "="
@@ -626,24 +626,45 @@ def main() -> None:
         return im
 
     def make_bicycle() -> Image.Image:
-        """Leaning cycle, drawn tilted so it reads against a wall."""
-        im = Image.new("RGBA", (28, 36), (0, 0, 0, 0))
+        """A filled cycle leaning on the wall: tires, spokes, frame, saddle."""
+        w, h = 36, 44
+        im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         px = im.load()
-        ellipse(px, 8, 26, 6, 6, INK, 28, 36)
-        ellipse(px, 8, 26, 4, 4, (0, 0, 0, 0), 28, 36)
-        ellipse(px, 20, 14, 6, 6, INK, 28, 36)
-        ellipse(px, 20, 14, 4, 4, (0, 0, 0, 0), 28, 36)
-        for t in range(14):
-            x, y = 8 + t, 26 - t
-            if 0 <= x < 28 and 0 <= y < 36:
-                px[x, y] = IRON
-                if y + 1 < 36:
-                    px[x, y + 1] = INK
-        for y in range(12, 26):
-            px[12, y] = IRON
-        px[18, 10] = INK
-        px[19, 9] = INK
-        px[20, 8] = (92, 58, 32, 255)
+        tire, spoke, hub = (42, 36, 32, 255), (168, 160, 148, 255), (196, 148, 64, 255)
+        frame, wood = (78, 72, 66, 255), (122, 76, 40, 255)
+
+        def wheel(cx: int, cy: int) -> None:
+            ellipse(px, cx, cy, 8, 8, tire, w, h)
+            ellipse(px, cx, cy, 5, 5, spoke, w, h)
+            ellipse(px, cx, cy, 2, 2, hub, w, h)
+            px[cx, cy - 6] = tire
+            px[cx, cy + 6] = tire
+            px[cx - 6, cy] = tire
+            px[cx + 6, cy] = tire
+
+        def stroke(x0: int, y0: int, x1: int, y1: int, color: tuple[int, int, int, int]) -> None:
+            steps = max(abs(x1 - x0), abs(y1 - y0), 1)
+            for i in range(steps + 1):
+                x = round(x0 + (x1 - x0) * i / steps)
+                y = round(y0 + (y1 - y0) * i / steps)
+                for dx, dy in ((0, 0), (1, 0), (0, 1)):
+                    if 0 <= x + dx < w and 0 <= y + dy < h:
+                        px[x + dx, y + dy] = color
+
+        wheel(10, 32)
+        wheel(26, 16)
+        stroke(10, 32, 26, 16, frame)
+        stroke(10, 32, 18, 22, frame)
+        stroke(18, 22, 26, 16, frame)
+        for x in range(14, 23):
+            px[x, 20] = wood
+            px[x, 21] = (84, 52, 30, 255)
+        stroke(26, 16, 31, 10, frame)
+        for x in range(28, 35):
+            px[x, 9] = spoke
+            px[x, 10] = frame
+        px[16, 28] = hub
+        px[17, 28] = hub
         return im
 
     def make_tonga() -> Image.Image:
@@ -886,15 +907,21 @@ def main() -> None:
         return im
 
     def make_bell() -> Image.Image:
-        im = Image.new("RGBA", (12, 14), (0, 0, 0, 0))
+        im = Image.new("RGBA", (22, 30), (0, 0, 0, 0))
         px = im.load()
-        brass, dark = (212, 164, 72, 255), (96, 68, 28, 255)
-        for y in range(1, 4):
-            px[6, y] = dark
-        ellipse(px, 6, 8, 4, 4, dark, 12, 14)
-        ellipse(px, 6, 8, 3, 3, brass, 12, 14)
-        px[6, 12] = dark
-        px[5, 6] = (240, 210, 140, 255)
+        brass, hi, dark = (212, 164, 72, 255), (244, 220, 150, 255), (96, 68, 28, 255)
+        for y in range(0, 6):
+            px[10, y] = dark
+            px[11, y] = dark
+        ellipse(px, 11, 16, 9, 8, dark, 22, 30)
+        ellipse(px, 11, 15, 7, 6, brass, 22, 30)
+        ellipse(px, 9, 13, 3, 2, hi, 22, 30)
+        for x in range(3, 20):
+            px[x, 22] = dark
+            px[x, 23] = brass
+        px[11, 24] = dark
+        px[11, 25] = dark
+        ellipse(px, 11, 27, 2, 2, dark, 22, 30)
         return im
 
     def make_diya() -> Image.Image:
@@ -1027,21 +1054,25 @@ def main() -> None:
         return im
 
     def make_balcony() -> Image.Image:
-        im = Image.new("RGBA", (48, 32), (0, 0, 0, 0))
+        """A jharokha wide enough to read: cusp, jaali, and a sandstone rail."""
+        w, h = 84, 56
+        im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         px = im.load()
-        for y in range(8, 22):
-            for x in range(6, 42):
-                arch = 10 + abs(x - 24) // 3
+        dark = (42, 28, 32, 255)
+        for y in range(10, 40):
+            for x in range(8, 76):
+                arch = 14 + abs(x - 42) // 3
                 if y < arch:
                     continue
-                hole = 10 < x < 38 and arch + 2 < y < 20 and (x % 4 != 0) and (y % 4 != 0)
-                px[x, y] = (42, 28, 32, 255) if hole else SAND if y == arch else SAND_D
-        for y in range(22, 28):
-            for x in range(2, 46):
-                px[x, y] = SAND if y < 26 else SAND_D
-        for x in range(4, 44, 6):
-            px[x, 26] = (72, 48, 32, 255)
-            px[x, 27] = (72, 48, 32, 255)
+                hole = 14 < x < 70 and arch + 3 < y < 36 and (x % 5 != 0) and (y % 5 != 0)
+                px[x, y] = dark if hole else SAND if y == arch else SAND_D
+        for y in range(40, 52):
+            for x in range(2, 82):
+                px[x, y] = SAND if y < 46 else SAND_D
+        for x in range(6, 80, 8):
+            px[x, 46] = (72, 48, 32, 255)
+            px[x, 47] = (72, 48, 32, 255)
+            px[x + 1, 48] = (72, 48, 32, 255)
         return im
 
     make_trunk().save(OUT / "crate.png")
@@ -1147,15 +1178,17 @@ def main() -> None:
         world.alpha_composite(im, (x, y))
 
     def shopfront(tx: int) -> None:
-        left, top = tx * TILE + 4, 2 * TILE + 8
+        left, top = tx * TILE - 4, 2 * TILE + 2
         wood, dark = (112, 68, 36, 255), (64, 38, 24, 255)
-        for y in range(top, top + 22):
-            for x in range(left, left + 24):
-                shutter = (x // 4) % 2 == 0
-                dot(wp, x, y, dark if y < top + 3 or shutter else wood, world.width, world.height)
-        for x in range(left - 2, left + 26):
+        for y in range(top, top + 40):
+            for x in range(left, left + 40):
+                shutter = (x // 5) % 2 == 0
+                lintel = y < top + 6
+                dot(wp, x, y, dark if lintel or shutter else wood, world.width, world.height)
+        for x in range(left - 4, left + 44):
             dot(wp, x, top - 1, SAND, world.width, world.height)
-            dot(wp, x, top - 2, SAND_D, world.width, world.height)
+            dot(wp, x, top - 2, SAND, world.width, world.height)
+            dot(wp, x, top - 3, SAND_D, world.width, world.height)
 
     def rangoli(cx: int, cy: int) -> None:
         saff, cream, green = (214, 112, 36, 255), (236, 224, 196, 255), (46, 104, 48, 255)
@@ -1172,18 +1205,21 @@ def main() -> None:
                     if 3 < ring < 14 and ring % 2 == 0:
                         dot(wp, cx + i, cy + j, saff, world.width, world.height)
 
-    paste_prop(jharokha, 3 * TILE + 4, 2 * TILE + 2)
-    paste_prop(jharokha, 29 * TILE, 2 * TILE + 2)
-    paste_prop(Image.open(OUT / "jaali.png"), 23 * TILE + 5, 2 * TILE + 14)
+    paste_prop(jharokha, 2 * TILE, 2 * TILE - 4)
+    paste_prop(jharokha, 28 * TILE, 2 * TILE - 4)
+    jaali = Image.open(OUT / "jaali.png").convert("RGBA")
+    if jaali.width < 48:
+        jaali = jaali.resize((jaali.width * 2, jaali.height * 2), Image.NEAREST)
+    paste_prop(jaali, 22 * TILE + 4, 2 * TILE + 8)
     paste_prop(Image.open(OUT / "notice.png"), 7 * TILE, 2 * TILE + 4)
     paste_prop(Image.open(OUT / "notice.png"), 38 * TILE + 2, 8 * TILE + 2)
     paste_prop(Image.open(OUT / "poster.png"), 16 * TILE, 2 * TILE + 6)
     blit_text(world, "CHALO DILLI", 12 * TILE + 2, 3 * TILE + 8, CREAM, 2)
     shopfront(26)
     shopfront(31)
+    # Rangoli stays in the west yard, clear of the plate rune at (22, 8).
+    rangoli(6 * TILE + 16, 6 * TILE + 10)
     rangoli(12 * TILE + 16, 7 * TILE + 18)
-    rangoli(19 * TILE + 8, 6 * TILE + 20)
-    rangoli(15 * TILE + 16, 6 * TILE + 16)
 
     def dhurrie(x0: int, y0: int, w: int, h: int) -> None:
         red, tan, edge = (168, 72, 48, 255), (214, 176, 120, 255), (84, 44, 32, 255)
@@ -1192,11 +1228,8 @@ def main() -> None:
                 band = ((y - y0) // 3) % 2 == 0
                 dot(wp, x, y, edge if x in (x0, x0 + w - 1) or y in (y0, y0 + h - 1) else red if band else tan, world.width, world.height)
 
-    dhurrie(5 * TILE + 6, 7 * TILE + 8, 78, 36)
-    dhurrie(22 * TILE + 4, 6 * TILE + 10, 52, 28)
-    # Worn patches so the flagstones are not one flat field.
-    for cx, cy, rx in ((9 * TILE, 9 * TILE + 8, 18), (18 * TILE + 8, 9 * TILE, 14), (27 * TILE, 7 * TILE + 8, 16)):
-        ellipse(wp, cx, cy, rx, rx // 2, (168, 132, 88, 255), world.width, world.height)
+    dhurrie(4 * TILE + 8, 8 * TILE + 6, 70, 28)
+    dhurrie(28 * TILE + 6, 7 * TILE + 8, 48, 26)
     # Papers and a rug inside the leaflet room, so the alcove is not a flat brown box.
     rug = (120, 42, 36, 255)
     for y in range(4 * TILE + 18, 6 * TILE + 8):
@@ -1221,7 +1254,7 @@ def main() -> None:
         "spawn": [3, 6],
         "crate": [15, 8],
         "plate": [22, 8],
-        "bell": [24, 2],
+        "bell": [11, 2],
         "grate": [33, 5],
         "gate": [33, 9],
         "leaf": [36, 5],
