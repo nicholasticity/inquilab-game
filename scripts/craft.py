@@ -359,29 +359,23 @@ def side_quoin(im: Image.Image, edge: str) -> Image.Image:
 
 
 def plank_tile(kind: int) -> Image.Image:
-    im = Image.new("RGBA", (32, 32), W)
+    """Narrow wood values. The seam is one step darker, with no cream flash."""
+    im = Image.new("RGBA", (32, 32), O)
     px = im.load()
+    bodies = (OL, O, OL, O)
     for board in range(4):
         y0 = board * 8
-        body = (O, OL, WH, O)[ (board + kind) % 4 ]
+        body = bodies[(board + kind) % 4]
         for y in range(y0, y0 + 7):
             for x in range(32):
-                if y == y0:
-                    c = WH
-                elif y == y0 + 6:
+                if y == y0 + 6:
                     c = W
-                elif x % 11 == (kind + board) % 5 and y == y0 + 3:
-                    c = W  # grain break
+                elif x % 17 == (kind * 3 + board) % 9 and y == y0 + 4:
+                    c = O if body == OL else OL
                 else:
                     c = body
                 px[x, y] = c
-        px[4 + kind * 3, y0 + 2] = BR
-        px[4 + kind * 3, y0 + 3] = BD  # nail
-    # Knot on one board.
-    kx, ky = 20, 8 + (kind % 3) * 8 + 3
-    px[kx, ky] = W
-    px[kx + 1, ky] = O
-    px[kx, ky + 1] = OL
+        px[8 + kind * 2, y0 + 3] = W
     return im
 
 
@@ -1124,10 +1118,15 @@ def charpoy() -> Image.Image:
         for y in range(6, 12):
             px[lx, y] = O
             px[lx + 1, y] = OL
-    # Folded cloth at the head.
-    for y in range(12, 20):
-        for x in range(14, 28):
-            px[x, y] = SL if y < 15 else SF if (x + y) % 3 else SA
+    # A folded durrie at the head: border and stripes, not a flat patch.
+    for y in range(13, 21):
+        for x in range(16, 36):
+            border = x < 18 or x > 33 or y in (13, 20)
+            if border:
+                c = Y if (x + y) % 2 == 0 else X
+            else:
+                c = F if ((y - 13) // 2) % 2 == 0 else SL
+            px[x, y] = c
     return im
 
 
@@ -1431,32 +1430,35 @@ def stall() -> Image.Image:
 
 
 def kolam(px, cx: int, cy: int, mw: int, mh: int) -> None:
-    """Rice flour and saffron powder, painted on the stone. No highlight, no glow."""
-    rows = [
-        "....f...f...f...f...f....",
-        "...f.f.f.f.f.f.f.f.f.f...",
-        "....f...f...f...f...f....",
-        "..u...................u..",
-        ".u..f...............f..u.",
-        "u...uuu...........uuu...u",
-        ".u.u.....f.....f.....u.u.",
-        "..u.........y.........u..",
-        ".u.u.....f.....f.....u.u.",
-        "u...uuu...........uuu...u",
-        ".u..f...............f..u.",
-        "..u...................u..",
-        "....f...f...f...f...f....",
-        "...f.f.f.f.f.f.f.f.f.f...",
-        "....f...f...f...f...f....",
-    ]
-    blit_at = from_rows(rows)
-    paste_px = blit_at.load()
-    ox, oy = cx - blit_at.width // 2, cy - blit_at.height // 2
-    for y in range(blit_at.height):
-        for x in range(blit_at.width):
-            c = paste_px[x, y]
-            if c[3]:
-                put(px, ox + x, oy + y, c, mw, mh)
+    """A 2-tile kolam in rice flour and saffron. Flat on the stone, no glow."""
+    for gy in range(-3, 4):
+        for gx in range(-3, 4):
+            x, y = cx + gx * 8, cy + gy * 8
+            put(px, x, y, F, mw, mh)
+            put(px, x + 1, y, F, mw, mh)
+    for i in range(29):
+        put(px, cx - 28 + i, cy - 28, SL, mw, mh)
+        put(px, cx - 28 + i, cy + 28, SL, mw, mh)
+        put(px, cx - 28, cy - 28 + i, SL, mw, mh)
+        put(px, cx + 28, cy - 28 + i, SL, mw, mh)
+    for i in range(25):
+        put(px, cx + i, cy - (24 - i), SF, mw, mh)
+        put(px, cx - i, cy - (24 - i), SF, mw, mh)
+        put(px, cx + i, cy + (24 - i), SF, mw, mh)
+        put(px, cx - i, cy + (24 - i), SF, mw, mh)
+    for i in range(13):
+        put(px, cx - 12 + i, cy - 12, Y, mw, mh)
+        put(px, cx - 12 + i, cy + 12, Y, mw, mh)
+        put(px, cx - 12, cy - 12 + i, Y, mw, mh)
+        put(px, cx + 12, cy - 12 + i, Y, mw, mh)
+    for i in range(-8, 9):
+        put(px, cx + i, cy, F, mw, mh)
+        put(px, cx, cy + i, F, mw, mh)
+    for dx, dy in ((-16, 0), (16, 0), (0, -16), (0, 16)):
+        for k in range(-3, 4):
+            put(px, cx + dx + k, cy + dy, SA, mw, mh)
+            put(px, cx + dx, cy + dy + k, SA, mw, mh)
+    put(px, cx, cy, Y, mw, mh)
 
 
 def dhurrie(px, x0: int, y0: int, w: int, h: int, mw: int, mh: int) -> None:
@@ -1584,7 +1586,7 @@ def paint_map(rows: list[str]) -> Image.Image:
                 wp[x, y] = S7 if x < 24 * tile + 50 else S6
     _text(world, "CHALO DILLI", 24 * tile + 4, 3 * tile + 8, X, 2)
 
-    kolam(wp, 5 * tile + 16, 9 * tile + 8, world.width, world.height)
+    kolam(wp, 2 * tile + 16, 10 * tile + 4, world.width, world.height)
     dhurrie(wp, 4 * tile + 8, 8 * tile + 8, 72, 26, world.width, world.height)
     dhurrie(wp, 28 * tile + 4, 7 * tile + 10, 52, 24, world.width, world.height)
 

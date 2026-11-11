@@ -28,6 +28,9 @@ const WIRE =
 const SPEED = 78;
 const PATROL = 52;
 const CHASE = 68;
+// Wider than the gap a wall leaves between the constable and a player
+// pressed against it. A catch of 22 left him stalled at about 22.4.
+const CATCH = 32;
 const FRAMES = 9;
 const STICK_DEAD = 0.2;
 const OFFICER_A = { x: 20, y: 4 };
@@ -215,6 +218,12 @@ export class Yard extends Phaser.Scene {
     image("jharokha");
     image("glow");
     image("mote");
+    image("lota");
+    image("pots");
+    image("goat");
+    image("plant");
+    image("plant2");
+    image("broom");
     for (const id of ["kite", "veil", "key"] as const) image(`port-${id}`, `port-${id}`);
     for (const kind of ["kite", "veil", "veil2", "key", "guard", "officer"]) {
       this.load.spritesheet(kind, `assets/lpc/${kind}.png`, { frameWidth: 64, frameHeight: 64 });
@@ -406,6 +415,16 @@ export class Yard extends Phaser.Scene {
     drop("press", 35, 6);
     drop("sack", 37, 6);
     drop("matka2", 35, 9);
+    // Dressing along the walls, off the patrol, the push row, and the officer's beat.
+    drop("plant", 4, 4);
+    drop("crate", 1, 7);
+    drop("pots", 4, 11);
+    drop("broom", 6, 11);
+    drop("lota", 19, 11);
+    drop("goat", 21, 11);
+    drop("crate", 23, 11);
+    drop("plant2", 29, 11);
+    drop("plant", 37, 10);
     // Bracketed jharokhas. The sill hangs into the yard, so the player can walk in front of it.
     for (const x of [9 * TILE + 16, 17 * TILE]) {
       const y = 4 * TILE + 8;
@@ -420,8 +439,8 @@ export class Yard extends Phaser.Scene {
     for (const [x, y] of [[27, 4], [36, 4], [36, 9]] as const) {
       this.diyas.push(this.world(this.add.image(x * TILE + 16, y * TILE + 8, "diya").setOrigin(0.5, 1).setDepth((y + 1) * TILE)));
     }
-    // Left of the notice, clear of both jharokhas. A second line past the east balcony.
-    for (const x of [112, 22 * TILE]) {
+    // Left of the notice. The east line sits between the two doors, clear of the jaali.
+    for (const x of [112, 27 * TILE + 16]) {
       const cloth = this.world(this.add.image(x, 2 * TILE + 18, "laundry").setOrigin(0, 0).setDepth(4 * TILE));
       cloth.setData("base", "laundry");
       this.laundry.push(cloth);
@@ -956,7 +975,7 @@ export class Yard extends Phaser.Scene {
         this.chaseBest = 9999;
       } else {
         this.chase(dt);
-        if (this.invuln <= 0 && Math.hypot(this.px - this.gx, this.py - this.gy) < 22) this.catchPlayer();
+        if (this.invuln <= 0 && Math.hypot(this.px - this.gx, this.py - this.gy) < CATCH) this.catchPlayer();
       }
     } else if (this.gState === "stun" || this.gState === "bell") {
       this.gTimer -= dt;
@@ -1104,10 +1123,53 @@ export class Yard extends Phaser.Scene {
     const dx = this.px - this.gx;
     const dy = this.py - this.gy;
     const m = Math.hypot(dx, dy) || 1;
-    this.px += (dx / m) * 28;
-    this.py += (dy / m) * 18;
-    this.clampPlayer();
+    this.shove((dx / m) * 28, (dy / m) * 18);
     if (this.hearts <= 0) this.dying = true;
+  }
+
+  /** Knockback uses the same box as walking, and stops at the first solid. */
+  private shove(dx: number, dy: number): void {
+    const dist = Math.hypot(dx, dy);
+    const steps = Math.max(1, Math.ceil(dist / 2));
+    for (let i = 0; i < steps; i++) {
+      const nx = this.px + dx / steps;
+      const ny = this.py + dy / steps;
+      if (this.bodyHits(nx, ny, 10, 12, false, true)) break;
+      this.px = nx;
+      this.py = ny;
+    }
+    this.clampPlayer();
+    this.unstick();
+  }
+
+  private feetFree(x: number, y: number): boolean {
+    return !this.bodyHits(x, y, 10, 12, false, true);
+  }
+
+  /** If a shove or a bug leaves her inside a solid, step to the nearest open tile. */
+  private unstick(): void {
+    if (this.feetFree(this.px, this.py)) return;
+    const here = this.tileOf(this.px, this.py);
+    let bestX = this.px;
+    let bestY = this.py;
+    let best = Infinity;
+    for (let ty = here.y - 3; ty <= here.y + 3; ty++) {
+      for (let tx = here.x - 3; tx <= here.x + 3; tx++) {
+        const x = tx * TILE + TILE / 2;
+        const y = ty * TILE + TILE - 4;
+        if (!this.feetFree(x, y)) continue;
+        const d = Math.hypot(x - this.px, y - this.py);
+        if (d < best) {
+          best = d;
+          bestX = x;
+          bestY = y;
+        }
+      }
+    }
+    if (best < Infinity) {
+      this.px = bestX;
+      this.py = bestY;
+    }
   }
 
   private respawn(): void {
@@ -1272,7 +1334,11 @@ export class Yard extends Phaser.Scene {
       mote.setPosition((mote.getData("homeX") as number) + Math.sin(t) * 8, (mote.getData("homeY") as number) + Math.cos(t * 0.8) * 5);
       mote.setAlpha(0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t * 3)));
     }
-    for (const glow of this.glows) glow.setAlpha(1);
+    for (const glow of this.glows) {
+      const warm = 0.4 + 0.06 * Math.sin(this.time.now / 180 + glow.x * 0.03);
+      const flick = 0.05 * Math.sin(this.time.now / 70 + glow.y);
+      glow.setAlpha(warm + flick);
+    }
     this.arrow.setVisible(this.talking && Math.floor(this.time.now / 400) % 2 === 0);
     if (!this.grateOpen) {
       this.hint.setY(PLATE.y * TILE - 36 + Math.sin(this.time.now / 160) * 8);
@@ -1333,6 +1399,7 @@ export class Yard extends Phaser.Scene {
           this.moved = this.moveBy((aim.x * SPEED * dt) / 1000, (aim.y * SPEED * dt) / 1000);
         }
         this.clampPlayer();
+        this.unstick();
         if (this.moved > 0.2) {
           this.stepAcc += this.moved;
           if (this.stepAcc >= 7) {

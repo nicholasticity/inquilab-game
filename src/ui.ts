@@ -97,19 +97,18 @@ export function makeLeaflet(): Pix {
 }
 
 export function makeArrow(): Pix {
-  // A filled arrow pointing down. Shaft, then a solid head.
+  // Even shaft, then a head wider than the shaft that comes to a point.
   const p = new Pix(16, 24);
-  for (let y = 0; y < 11; y++) {
+  for (let y = 0; y < 12; y++) {
     p.force(6, y, YELLOW);
     p.force(7, y, YELLOW);
     p.force(8, y, BRASS);
     p.force(9, y, BRASS);
   }
-  for (let i = 0; i < 8; i++) {
-    for (let x = 7 - i; x <= 8 + i; x++) {
-      if (x < 0 || x > 15) continue;
-      p.force(x, 11 + i, x <= 7 ? YELLOW : BRASS);
-    }
+  for (let i = 0; i < 7; i++) {
+    const half = 6 - i;
+    const y = 12 + i;
+    for (let x = 7 - half; x <= 8 + half; x++) p.force(x, y, x < 8 ? YELLOW : BRASS);
   }
   return p;
 }
