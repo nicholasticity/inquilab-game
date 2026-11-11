@@ -1,7 +1,7 @@
 {
   "name": "Inquilab",
   "short_name": "Inquilab",
-  "description": "A top-down stealth uprising. Netaji's spies open the road, and the Raj falls.",
+  "description": "A 16-bit courtyard in 1930s Lahore. Tap to walk.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
