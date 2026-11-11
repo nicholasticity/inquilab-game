@@ -9,7 +9,6 @@ import {
   LEAF,
   MAP_H,
   MAP_W,
-  OFFICER,
   PLATE,
   SPAWN,
   TILE,
@@ -32,14 +31,16 @@ const SPEED = 78;
 const PATROL = 52;
 const CHASE = 68;
 const FRAMES = 9;
-const STICK_X = 62;
-const STICK_Y = 304;
-const STICK_R = 26;
+const STICK_X = 68;
+const STICK_Y = 300;
+const STICK_R = 36;
 const STICK_DEAD = 0.2;
+const OFFICER_A = { x: 20, y: 4 };
+const OFFICER_B = { x: 27, y: 4 };
 
 type Spy = "kite" | "veil" | "key";
 type Facing = "up" | "down" | "left" | "right";
-type Kind = Spy | "veil2" | "guard";
+type Kind = Spy | "veil2" | "guard" | "officer";
 type GState = "patrol" | "sus" | "chase" | "stun" | "bell";
 type Then = "bell" | "guard" | "gate" | "leaf" | "push";
 
@@ -151,6 +152,15 @@ export class Yard extends Phaser.Scene {
   private sel!: Phaser.GameObjects.Graphics;
   private lanterns: Phaser.GameObjects.Image[] = [];
   private laundry: Phaser.GameObjects.Image[] = [];
+  private officer!: Phaser.GameObjects.Sprite;
+  private oShadow!: Phaser.GameObjects.Image;
+  private ox = anchor(OFFICER_A.x, OFFICER_A.y).x;
+  private oy = anchor(OFFICER_A.x, OFFICER_A.y).y;
+  private oFacing: Facing = "right";
+  private oFrame = 0;
+  private oStep = 0;
+  private oIdle = 0;
+  private oDir = 1;
 
   constructor() {
     super("yard");
@@ -164,9 +174,8 @@ export class Yard extends Phaser.Scene {
     image("door");
     image("lantern");
     image("well");
-    image("barrel");
     image("sack");
-    image("awning");
+    image("matka");
     image("laundry");
     image("shadow");
     image("pebble");
@@ -175,15 +184,17 @@ export class Yard extends Phaser.Scene {
     image("charpoy");
     image("bicycle");
     image("tonga");
-    image("kettle");
-    image("kulhad");
     image("tulsi");
     image("pillar");
-    image("officer");
+    image("stall");
+    image("bench");
+    image("press");
+    image("bell");
+    image("diya");
     image("laundry2", "laundry-s");
     image("laundry3", "laundry-g");
     for (const id of ["kite", "veil", "key"] as const) image(`port-${id}`, `port-${id}`);
-    for (const kind of ["kite", "veil", "veil2", "key", "guard"]) {
+    for (const kind of ["kite", "veil", "veil2", "key", "guard", "officer"]) {
       this.load.spritesheet(kind, `assets/lpc/${kind}.png`, { frameWidth: 64, frameHeight: 64 });
     }
   }
@@ -229,14 +240,13 @@ export class Yard extends Phaser.Scene {
     this.dressCourt();
 
     const crateAt = this.crateAnchor(this.crateTx, this.crateTy);
-    this.crate = this.world(this.add.image(crateAt.x, crateAt.y, "crate").setOrigin(0.5, 1).setScale(1.45));
+    this.crate = this.world(this.add.image(crateAt.x, crateAt.y, "crate").setOrigin(0.5, 1));
     const grateAt = anchor(GRATE.x, GRATE.y);
     this.grate = this.world(this.add.image(grateAt.x, grateAt.y + 12, "grate").setOrigin(0.5, 1).setDepth(grateAt.y));
-    const gateAt = anchor(GATE.x, GATE.y);
-    this.gate = this.world(this.add.image(GATE.x * TILE, gateAt.y - 10, "door").setOrigin(0, 0.5));
+    this.gate = this.world(this.add.image(GATE.x * TILE + 16, GATE.y * TILE - 4, "door").setOrigin(0.5, 0));
     const leafAt = anchor(LEAF.x, LEAF.y);
     this.leaf = this.world(this.add.image(leafAt.x, leafAt.y - 10, "leaflet").setOrigin(0.5, 0.5).setScale(1.4));
-    this.bell = this.world(this.add.image(BELL.x * TILE + 16, BELL.y * TILE + 4, "lantern").setOrigin(0.5, 0));
+    this.bell = this.world(this.add.image(BELL.x * TILE + 16, BELL.y * TILE + 8, "bell").setOrigin(0.5, 0));
 
     const spawn = anchor(SPAWN.x, SPAWN.y);
     this.px = spawn.x;
@@ -246,8 +256,10 @@ export class Yard extends Phaser.Scene {
     this.player = this.world(this.add.sprite(this.px, this.py, "kite", rowOf("right") * FRAMES).setOrigin(0.5, 1));
     this.guard = this.world(this.add.sprite(this.gx, this.gy, "guard", rowOf("right") * FRAMES).setOrigin(0.5, 1));
     this.mark = this.world(this.add.image(this.gx, this.gy - 52, "qmark").setOrigin(0.5, 1).setVisible(false));
-    this.pebbleShadow = this.world(this.add.image(0, 0, "shadow").setVisible(false).setScale(0.45).setAlpha(0.4));
-    this.pebbleImg = this.world(this.add.image(0, 0, "pebble").setVisible(false).setScale(2.6).setDepth(2000));
+    this.pebbleShadow = this.world(this.add.image(0, 0, "shadow").setVisible(false).setScale(0.28).setAlpha(0.55));
+    this.pebbleImg = this.world(this.add.image(0, 0, "pebble").setVisible(false).setScale(1.4).setDepth(2000));
+    this.oShadow = this.world(this.add.image(this.ox, this.oy, "shadow").setOrigin(0.5, 0.5).setAlpha(0.5));
+    this.officer = this.world(this.add.sprite(this.ox, this.oy, "officer", rowOf("right") * FRAMES).setOrigin(0.5, 1));
     this.hint = this.world(this.add.image(PLATE.x * TILE + 16, PLATE.y * TILE - 8, "arrow").setOrigin(0.5, 1).setScale(2));
 
     this.flash = this.hud(this.add.image(VIEW_W / 2, (HUD + VIEW_H) / 2, "px").setDisplaySize(VIEW_W, HUD + VIEW_H).setTint(0xa83838).setAlpha(0).setDepth(8000));
@@ -292,31 +304,44 @@ export class Yard extends Phaser.Scene {
   }
 
   private dressCourt(): void {
-    const drop = (key: string, tx: number, ty: number, ox = 0.5, oy = 1, scale = 1) => {
+    const drop = (key: string, tx: number, ty: number, scale = 1, ox = 0.5, oy = 1) => {
       const at = anchor(tx, ty);
-      return this.world(this.add.image(at.x, at.y + 2, key).setOrigin(ox, oy).setScale(scale).setDepth(at.y));
+      const img = this.world(this.add.image(at.x, at.y + 2, key).setOrigin(ox, oy).setScale(scale).setDepth(at.y));
+      this.world(this.add.image(at.x, at.y, "shadow").setOrigin(0.5, 0.5).setScale(0.5 * scale).setAlpha(0.4).setDepth(at.y - 2));
+      return img;
     };
     this.world(this.add.image(WELL.x * TILE, WELL.y * TILE, "well").setOrigin(0, 0).setDepth((WELL.y + 2) * TILE));
-    drop("barrel", 8, 5);
-    drop("sack", 9, 5, 0.5, 1, 0.85);
-    drop("tulsi", 6, 4);
-    drop("barrel", 8, 10, 0.5, 1, 0.9);
-    drop("tulsi", 28, 10);
-    drop("pillar", 12, 6);
-    drop("bicycle", BICYCLE.x, BICYCLE.y);
-    drop("officer", OFFICER.x, OFFICER.y);
-    this.world(this.add.image(10 * TILE + 2, 11 * TILE, "charpoy").setOrigin(0, 1).setDepth(11 * TILE));
-    this.world(this.add.image(20 * TILE + 2, 12 * TILE, "charpoy").setOrigin(0, 1).setDepth(12 * TILE));
-    this.world(this.add.image(TONGA.x * TILE - 4, (TONGA.y + 1) * TILE, "tonga").setOrigin(0, 1).setDepth((TONGA.y + 1) * TILE));
-    drop("kettle", 6, 9);
-    drop("kettle", 7, 9);
-    drop("kulhad", 4, 9, 0.5, 1, 1.3);
-    drop("kulhad", 5, 9, 0.5, 1, 1.3);
-    for (let i = 0; i < 6; i++) {
-      this.world(this.add.image((1 + i) * TILE + 2, 9 * TILE, "awning").setOrigin(0, 1).setDepth(9 * TILE));
+    this.world(this.add.image(WELL.x * TILE + 32, (WELL.y + 2) * TILE - 4, "shadow").setOrigin(0.5, 0.5).setScale(1.1).setAlpha(0.35).setDepth((WELL.y + 2) * TILE - 2));
+    drop("matka", 8, 5, 1.7);
+    drop("sack", 9, 5, 1.7);
+    drop("tulsi", 6, 4, 1.65);
+    drop("matka", 10, 4, 1.7);
+    drop("tulsi", 14, 4, 1.65);
+    drop("matka", 7, 9, 1.7);
+    drop("sack", 7, 10, 1.7);
+    drop("tulsi", 28, 6, 1.65);
+    drop("tulsi", 22, 10, 1.65);
+    drop("pillar", 12, 6, 1.15);
+    const bike = anchor(BICYCLE.x, BICYCLE.y);
+    this.world(this.add.image(bike.x + 4, bike.y, "bicycle").setOrigin(0.2, 1).setScale(1.45).setDepth(bike.y));
+    this.world(this.add.image(bike.x + 6, bike.y - 2, "shadow").setOrigin(0.5, 0.5).setScale(0.75).setAlpha(0.4).setDepth(bike.y - 2));
+    const cotY = 10 * TILE + 18;
+    this.world(this.add.image(16 * TILE + 2, cotY, "charpoy").setOrigin(0, 1).setDepth(cotY));
+    this.world(this.add.image(16 * TILE + 28, cotY - 2, "shadow").setOrigin(0.5, 0.5).setScale(0.9).setAlpha(0.35).setDepth(cotY - 2));
+    this.world(this.add.image(TONGA.x * TILE - 2, (TONGA.y + 1) * TILE, "tonga").setOrigin(0, 1).setDepth((TONGA.y + 1) * TILE));
+    this.world(this.add.image(TONGA.x * TILE + 30, (TONGA.y + 1) * TILE - 2, "shadow").setOrigin(0.5, 0.5).setScale(1.2).setAlpha(0.35).setDepth((TONGA.y + 1) * TILE - 2));
+    const stallY = 11 * TILE;
+    this.world(this.add.image(8 * TILE + 2, stallY, "stall").setOrigin(0, 1).setDepth(stallY));
+    this.world(this.add.image(14 * TILE + 20, 10 * TILE + 16, "bench").setOrigin(0.5, 1).setScale(1.8).setDepth(10 * TILE + 16));
+    this.world(this.add.image(14 * TILE + 20, 10 * TILE + 14, "shadow").setOrigin(0.5, 0.5).setScale(1.05).setAlpha(0.35).setDepth(10 * TILE));
+    drop("press", 35, 6, 1.5);
+    drop("sack", 37, 6, 1.55);
+    drop("matka", 35, 9, 1.55);
+    for (const x of [6, 19, 22, 30]) {
+      this.lanterns.push(this.world(this.add.image(x * TILE + 16, 2 * TILE + 6, "lantern").setOrigin(0.5, 0).setScale(1.4).setDepth(3 * TILE)));
     }
-    for (const x of [6, 10, 22, 30]) {
-      this.lanterns.push(this.world(this.add.image(x * TILE + 16, 2 * TILE + 2, "lantern").setOrigin(0.5, 0).setDepth(3 * TILE)));
+    for (const [x, y] of [[8, 4], [27, 4], [36, 4], [36, 9]] as const) {
+      this.lanterns.push(this.world(this.add.image(x * TILE + 16, y * TILE + 8, "diya").setOrigin(0.5, 1).setScale(1.5).setDepth((y + 1) * TILE)));
     }
     const cloths = ["laundry", "laundry2", "laundry3", "laundry"];
     [5, 25, 18, 27].forEach((x, i) => {
@@ -329,7 +354,7 @@ export class Yard extends Phaser.Scene {
   }
 
   private inStick(x: number, y: number): boolean {
-    return x < 156 && y > HUD + VIEW_H - 156;
+    return Math.hypot(x - STICK_X, y - STICK_Y) < 64;
   }
 
   private setStick(x: number, y: number): void {
@@ -614,7 +639,7 @@ export class Yard extends Phaser.Scene {
     return Math.max(Math.abs(t.x - tx), Math.abs(t.y - ty)) <= 1;
   }
 
-  private bodyHits(cx: number, foot: number, halfW: number, halfH: number, guardSolid: boolean): boolean {
+  private bodyHits(cx: number, foot: number, halfW: number, halfH: number, guardSolid: boolean, officerSolid = true): boolean {
     const l = cx - halfW;
     const r = cx + halfW;
     const t = foot - halfH;
@@ -629,6 +654,7 @@ export class Yard extends Phaser.Scene {
     if (guardSolid && !this.disguise && this.gState !== "chase" && this.gState !== "stun" && this.gState !== "bell") {
       if (Math.hypot(cx - this.gx, foot - this.gy) < 18) return true;
     }
+    if (officerSolid && Math.hypot(cx - this.ox, foot - this.oy) < 14) return true;
     return false;
   }
 
@@ -765,14 +791,16 @@ export class Yard extends Phaser.Scene {
     return { x: x / m, y: y / m };
   }
 
+  private guardVector(): { x: number; y: number } {
+    if (this.gFacing === "left") return { x: -1, y: 0 };
+    if (this.gFacing === "right") return { x: 1, y: 0 };
+    if (this.gFacing === "up") return { x: 0, y: -1 };
+    return { x: 0, y: 1 };
+  }
+
   private seesPlayer(): boolean {
     if (this.disguise || this.gState === "stun" || this.gState === "bell") return false;
-    let fx = 0;
-    let fy = 0;
-    if (this.gFacing === "right") fx = 1;
-    else if (this.gFacing === "left") fx = -1;
-    else if (this.gFacing === "down") fy = 1;
-    else fy = -1;
+    const { x: fx, y: fy } = this.guardVector();
     const dx = this.px - this.gx;
     const dy = this.py - this.gy;
     const along = dx * fx + dy * fy;
@@ -828,6 +856,32 @@ export class Yard extends Phaser.Scene {
       if (this.gTimer <= 0) this.gState = "patrol";
     }
     this.heard = false;
+  }
+
+  private updateOfficer(dt: number): void {
+    const goal = this.oDir > 0 ? anchor(OFFICER_B.x, OFFICER_B.y) : anchor(OFFICER_A.x, OFFICER_A.y);
+    if (this.oIdle > 0) {
+      this.oIdle -= dt;
+      if (this.oIdle <= 0) this.oFacing = this.oDir > 0 ? "right" : "left";
+      return;
+    }
+    const dx = goal.x - this.ox;
+    if (Math.abs(dx) < 2) {
+      this.ox = goal.x;
+      this.oDir *= -1;
+      this.oIdle = 700;
+      this.oFacing = this.oDir > 0 ? "right" : "left";
+      return;
+    }
+    const step = Math.min(Math.abs(dx), (32 * dt) / 1000);
+    const nx = this.ox + Math.sign(dx) * step;
+    if (!this.bodyHits(nx, this.oy, 8, 10, false, false)) this.ox = nx;
+    this.oFacing = dx > 0 ? "right" : "left";
+    this.oStep += step;
+    if (this.oStep >= 7) {
+      this.oStep -= 7;
+      this.oFrame = (this.oFrame + 1) % FRAMES;
+    }
   }
 
   private enterSus(): void {
@@ -986,7 +1040,8 @@ export class Yard extends Phaser.Scene {
     this.pebbleImg.setVisible(false);
     this.pebbleShadow.setVisible(false);
     this.sfx.clink();
-    this.puff(tx, ty, 6);
+    this.puff(tx, ty, 8);
+    this.puff(tx, ty - 4, 4);
     if (hit === "bell") {
       this.gState = "bell";
       this.gTimer = 3000;
@@ -1063,6 +1118,7 @@ export class Yard extends Phaser.Scene {
 
     this.moved = 0;
     if (!this.talking && !this.itemUp && !this.dying) {
+      this.updateOfficer(dt);
       if (this.lock) {
         this.lock.t += dt;
         if (this.lock.kind === "throw" && !this.pebbleShot && this.lock.t > 140 && this.lock.target) this.spawnPebble(this.lock.target);
@@ -1087,8 +1143,14 @@ export class Yard extends Phaser.Scene {
           if (done.kind === "kneel") {
             this.gateOpen = true;
             this.sfx.slide();
-            this.tweens.add({ targets: this.gate, angle: -100, duration: 420 });
-            this.puff(this.gate.x + 10, this.gate.y, 6);
+            this.tweens.add({
+              targets: this.gate,
+              x: GATE.x * TILE + 46,
+              angle: -8,
+              duration: 420,
+              ease: "Cubic.Out",
+            });
+            this.puff(GATE.x * TILE + 16, GATE.y * TILE + 18, 6);
           } else if (done.kind === "cloak") {
             this.disguise = !!done.on;
             this.disguiseT = done.on ? 8000 : 0;
@@ -1133,7 +1195,7 @@ export class Yard extends Phaser.Scene {
       const groundY = this.pebble.sy + (this.pebble.ty - this.pebble.sy) * t;
       const arc = Math.sin(t * Math.PI) * 72;
       this.pebbleImg.setPosition(x, groundY - arc).setVisible(true).setDepth(4000);
-      this.pebbleShadow.setPosition(x, groundY).setVisible(true).setScale(0.35 + (1 - arc / 72) * 0.35).setDepth(groundY - 1);
+      this.pebbleShadow.setPosition(x, groundY).setVisible(true).setScale(0.16 + (1 - arc / 72) * 0.14).setDepth(groundY - 1);
       if (t >= 1) this.landPebble();
     }
 
@@ -1151,12 +1213,16 @@ export class Yard extends Phaser.Scene {
     const moving = this.moved > 0.2 && !this.lock;
     this.applyActor(this.player, kind, this.facing, moving ? this.walkFrame : 0, this.px, this.py, moving);
     this.shadow.setPosition(this.px, this.py - 2).setDepth(this.py - 1);
+    if (this.gState === "sus") this.gFacing = this.faceOf(this.px - this.gx, this.py - this.gy);
     const gMoving = this.gState === "patrol" ? this.gIdle <= 0 : this.gState === "chase";
     this.applyActor(this.guard, "guard", this.gFacing, gMoving ? this.gWalk : 0, this.gx, this.gy, gMoving);
     this.gShadow.setPosition(this.gx, this.gy - 2).setDepth(this.gy - 1);
+    const oMoving = this.oIdle <= 0;
+    this.applyActor(this.officer, "officer", this.oFacing, oMoving ? this.oFrame : 0, this.ox, this.oy, oMoving);
+    this.oShadow.setPosition(this.ox, this.oy - 2).setDepth(this.oy - 1);
     this.crate.setDepth(this.crate.y);
     this.grate.setDepth(this.grate.y);
-    this.gate.setDepth(this.gate.y + 20);
+    this.gate.setDepth(this.gate.y + 36);
 
     if (this.flicker > 0) {
       this.flickerT += dt;
@@ -1189,35 +1255,31 @@ export class Yard extends Phaser.Scene {
   private drawCone(): void {
     this.cone.clear();
     if (this.gState === "stun" || this.gState === "bell") return;
-    let fx = 0;
-    let fy = 1;
-    if (this.gFacing === "right") { fx = 1; fy = 0; }
-    else if (this.gFacing === "left") { fx = -1; fy = 0; }
-    else if (this.gFacing === "up") { fx = 0; fy = -1; }
+    const { x: fx, y: fy } = this.guardVector();
     const rx = -fy;
     const ry = fx;
     const ox = this.gx + fx * 10;
-    const oy = this.gy - 8 + fy * 6;
+    const oy = this.gy - 30 + fy * 6;
     const pts: Phaser.Math.Vector2[] = [new Phaser.Math.Vector2(ox, oy)];
     for (let i = 0; i <= 6; i++) {
       const side = -1 + (2 * i) / 6;
-      const tx = ox + fx * 128 + rx * side * 46;
-      const ty = oy + fy * 128 + ry * side * 46;
+      const tx = ox + fx * 120 + rx * side * 40;
+      const ty = oy + fy * 120 + ry * side * 40;
       const dx = tx - ox;
       const dy = ty - oy;
       const len = Math.hypot(dx, dy) || 1;
       let hit = 1;
-      for (let d = 10; d < len; d += 8) {
+      for (let d = 8; d < len; d += 8) {
         const x = ox + (dx / len) * d;
         const y = oy + (dy / len) * d;
-        if (this.tileSolid(Math.floor(x / TILE), Math.floor((y - 1) / TILE))) {
+        if (this.tileSolid(Math.floor(x / TILE), Math.floor(y / TILE))) {
           hit = d / len;
           break;
         }
       }
       pts.push(new Phaser.Math.Vector2(ox + (dx / len) * len * hit, oy + (dy / len) * len * hit));
     }
-    this.cone.fillStyle(this.gState === "chase" ? 0xa83838 : 0xf0d878, 0.28);
+    this.cone.fillStyle(this.gState === "chase" ? 0xa83838 : 0xf0d878, 0.34);
     this.cone.fillPoints(pts, true);
   }
 
@@ -1249,6 +1311,7 @@ export class Yard extends Phaser.Scene {
       disguise: this.disguise,
       hearts: this.hearts,
       guard: { x: this.gx, y: this.gy, state: this.gState, facing: this.gFacing, frame: this.gWalk },
+      officer: { x: this.ox, y: this.oy, facing: this.oFacing },
       crate: { x: this.crateTx, y: this.crateTy },
       grate: this.grateOpen,
       gate: this.gateOpen,

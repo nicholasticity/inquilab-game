@@ -3,7 +3,7 @@
 
 Sources (see CREDITS.md):
 - Universal LPC Spritesheet Character Generator (CC-BY-SA 3.0 / GPL 3.0)
-- OpenGameArt LPC walls, floors, windows & doors, and the LPC base tiles
+- OpenGameArt LPC walls and floors. Props on the court are original drawings.
 """
 
 from __future__ import annotations
@@ -370,24 +370,23 @@ def build_grid() -> list[str]:
     g[6][3] = "@"
     g[8][15] = "+"
     g[8][22] = "="
-    # Chai stall, west. Wooden counter, not a plaster slab.
-    carve(1, 9, 7, 3, "T")
-    # Well in the south-east, clear of the plate at (22, 8) and of the push row.
+    # Bottom-left stays open for the thumbstick. The stall sits to its right,
+    # inside the opening view, off the push row (y=8) and the guard's south line.
+    # The bench is the two tiles just east of the counter, not on the walkway above it.
+    carve(8, 10, 5, 1, "T")
+    g[10][14] = "C"
+    g[10][15] = "C"
+    g[10][16] = "C"
+    g[10][17] = "C"
+    g[7][18] = "C"
+    g[7][19] = "C"
     carve(26, 10, 2, 2, "W")
-    # Charpoys, tonga, pots. Kept off the guard loop and the push row.
-    g[10][10] = "C"
-    g[10][11] = "C"
-    g[11][16] = "C"
-    g[11][17] = "C"
-    g[11][20] = "C"
-    g[11][21] = "C"
+    # Clay pots off the guard loop and the push row. The officer patrols, so he is not a wall.
     g[5][8] = "&"
     g[5][9] = "&"
-    g[10][8] = "&"
-    g[10][28] = "&"
     g[4][6] = "&"
-    g[4][31] = "&"  # officer, off the graffiti and the push row
-    g[8][5] = "&"  # bicycle
+    g[4][10] = "&"
+    g[4][14] = "&"
     g[6][12] = "P"
     return ["".join(row) for row in g]
 
@@ -431,7 +430,12 @@ def main() -> None:
     key = sheet([male, pants, shoes, cream, vest_n or vest_m, head_m, eyes, hair_parted])
     guard = stamp_plume(sheet([male, pants_khaki, shoes, khaki, head_m, eyes, pagri, cane]))
     officer_sheet = sheet([male, pants_khaki, shoes, khaki, head_m, eyes, hair_parted])
-    pith_frame(officer_sheet.crop((0, 128, 64, 192))).save(OUT / "officer.png")
+    officer_walk = officer_sheet.copy()
+    for row in range(4):
+        for col in range(9):
+            frame = officer_walk.crop((col * 64, row * 64, col * 64 + 64, row * 64 + 64))
+            officer_walk.paste(pith_frame(frame), (col * 64, row * 64))
+    officer_walk.save(OUT / "officer.png")
 
     for name, im in (("kite", kite), ("veil", veil), ("veil2", veil2), ("key", key), ("guard", guard)):
         im.save(OUT / f"{name}.png")
@@ -582,11 +586,13 @@ def main() -> None:
         return im
 
     def make_pebble() -> Image.Image:
-        im = Image.new("RGBA", (16, 12), (0, 0, 0, 0))
+        im = Image.new("RGBA", (12, 8), (0, 0, 0, 0))
         px = im.load()
-        ellipse(px, 8, 6, 7, 5, INK, 16, 12)
-        ellipse(px, 8, 6, 5, 3, (54, 48, 44, 255), 16, 12)
-        ellipse(px, 6, 5, 2, 1, (210, 196, 170, 255), 16, 12)
+        grey, edge, hi = (148, 144, 136, 255), (78, 74, 70, 255), (228, 222, 206, 255)
+        ellipse(px, 6, 4, 5, 3, edge, 12, 8)
+        ellipse(px, 6, 4, 4, 2, grey, 12, 8)
+        px[4, 3] = hi
+        px[5, 3] = hi
         return im
 
     def make_well() -> Image.Image:
@@ -620,38 +626,51 @@ def main() -> None:
         return im
 
     def make_bicycle() -> Image.Image:
-        im = Image.new("RGBA", (40, 28), (0, 0, 0, 0))
+        """Leaning cycle, drawn tilted so it reads against a wall."""
+        im = Image.new("RGBA", (28, 36), (0, 0, 0, 0))
         px = im.load()
-        ellipse(px, 10, 16, 7, 7, INK, 40, 28)
-        ellipse(px, 10, 16, 5, 5, (0, 0, 0, 0), 40, 28)
-        ellipse(px, 29, 16, 7, 7, INK, 40, 28)
-        ellipse(px, 29, 16, 5, 5, (0, 0, 0, 0), 40, 28)
-        for t in range(16):
-            x = 10 + t
-            y = 16 - t // 3
-            px[x, y] = IRON
-            px[x, y + 1] = INK
-        for y in range(8, 17):
-            px[20, y] = IRON
-        for x in range(16, 26):
-            px[x, 8] = INK
+        ellipse(px, 8, 26, 6, 6, INK, 28, 36)
+        ellipse(px, 8, 26, 4, 4, (0, 0, 0, 0), 28, 36)
+        ellipse(px, 20, 14, 6, 6, INK, 28, 36)
+        ellipse(px, 20, 14, 4, 4, (0, 0, 0, 0), 28, 36)
+        for t in range(14):
+            x, y = 8 + t, 26 - t
+            if 0 <= x < 28 and 0 <= y < 36:
+                px[x, y] = IRON
+                if y + 1 < 36:
+                    px[x, y + 1] = INK
+        for y in range(12, 26):
+            px[12, y] = IRON
+        px[18, 10] = INK
+        px[19, 9] = INK
+        px[20, 8] = (92, 58, 32, 255)
         return im
 
     def make_tonga() -> Image.Image:
-        im = Image.new("RGBA", (72, 40), (0, 0, 0, 0))
+        """A thela: two big wheels, a wooden bed, produce, and a push handle."""
+        im = Image.new("RGBA", (68, 40), (0, 0, 0, 0))
         px = im.load()
-        for y in range(8, 20):
-            for x in range(14, 58):
-                px[x, y] = SAFF if y < 14 else (160, 48, 40, 255)
-        for x in range(18, 54):
-            px[x, 20] = (112, 70, 38, 255)
-            px[x, 21] = (84, 52, 30, 255)
-        ellipse(px, 22, 28, 8, 8, INK, 72, 40)
-        ellipse(px, 22, 28, 5, 5, SAND, 72, 40)
-        ellipse(px, 50, 28, 8, 8, INK, 72, 40)
-        ellipse(px, 50, 28, 5, 5, SAND, 72, 40)
-        for y in range(18, 30):
-            px[8, y] = (92, 58, 32, 255)
+        wood, bed = (112, 70, 38, 255), (84, 52, 30, 255)
+        ellipse(px, 18, 28, 9, 9, INK, 68, 40)
+        ellipse(px, 18, 28, 6, 6, SAND, 68, 40)
+        ellipse(px, 18, 28, 2, 2, INK, 68, 40)
+        ellipse(px, 46, 28, 9, 9, INK, 68, 40)
+        ellipse(px, 46, 28, 6, 6, SAND, 68, 40)
+        ellipse(px, 46, 28, 2, 2, INK, 68, 40)
+        for y in range(16, 24):
+            for x in range(12, 54):
+                px[x, y] = wood if y < 18 else bed
+        for x in range(16, 50):
+            px[x, 15] = (140, 92, 48, 255)
+        ellipse(px, 24, 12, 4, 3, GREEN, 68, 40)
+        ellipse(px, 32, 11, 3, 3, SAFF, 68, 40)
+        ellipse(px, 40, 12, 4, 3, (176, 48, 36, 255), 68, 40)
+        for x in range(4, 14):
+            px[x, 18] = wood
+            px[x, 19] = bed
+        px[4, 14] = wood
+        px[4, 15] = wood
+        px[5, 14] = wood
         return im
 
     def make_kettle() -> Image.Image:
@@ -805,56 +824,237 @@ def main() -> None:
     ellipse(sd, 18, 7, 16, 5, (12, 8, 10, 120), 36, 14)
     shadow.save(OUT / "shadow.png")
 
-    house = Image.open(SRC / "base/house.png").convert("RGBA")
-    house.crop((136, 18, 174, 42)).save(OUT / "awning.png")
-    door = house.crop((100, 14, 130, 58))
-    door.save(OUT / "door.png")
+    def make_trunk() -> Image.Image:
+        im = Image.new("RGBA", (30, 22), (0, 0, 0, 0))
+        px = im.load()
+        wood, dark, brass = (132, 84, 44, 255), (78, 48, 28, 255), (196, 148, 64, 255)
+        for y in range(4, 20):
+            for x in range(2, 28):
+                px[x, y] = dark if y % 4 == 0 else wood
+        for y in range(2, 6):
+            for x in range(4, 26):
+                px[x, y] = (156, 102, 54, 255) if y > 2 else dark
+        for cx, cy in ((3, 5), (25, 5), (3, 17), (25, 17)):
+            for dy in range(3):
+                for dx in range(3):
+                    px[cx + dx, cy + dy] = brass if dx == 1 or dy == 1 else (120, 84, 32, 255)
+        for x in range(12, 18):
+            px[x, 8] = brass
+        return im
 
-    chests = Image.open(SRC / "base/chests.png").convert("RGBA")
-    crate = chests.crop((0, 0, 32, 32)).convert("RGBA")
-    cp = crate.load()
-    for y in range(crate.height):
-        for x in range(crate.width):
-            r, g, b, a = cp[x, y]
-            if a < 20:
-                continue
-            if abs(r - g) < 22 and abs(g - b) < 22:
-                cp[x, y] = (min(255, r + 48), min(255, g + 48), min(255, b + 40), a)
-            else:
-                cp[x, y] = (max(0, int(r * 0.62)), max(0, int(g * 0.5)), max(0, int(b * 0.4)), a)
-    crate.save(OUT / "crate.png")
+    def make_matka() -> Image.Image:
+        im = Image.new("RGBA", (16, 18), (0, 0, 0, 0))
+        px = im.load()
+        ellipse(px, 8, 11, 6, 6, (96, 48, 32, 255), 16, 18)
+        ellipse(px, 8, 11, 5, 5, CLAY, 16, 18)
+        ellipse(px, 6, 9, 2, 2, (196, 120, 72, 255), 16, 18)
+        ellipse(px, 8, 5, 3, 2, (120, 64, 40, 255), 16, 18)
+        ellipse(px, 8, 4, 2, 1, (72, 36, 28, 255), 16, 18)
+        return im
 
-    barrel = Image.open(SRC / "base/barrel.png").convert("RGBA").crop((0, 0, 40, 48))
-    bb = barrel.getbbox()
-    if bb:
-        barrel = barrel.crop(bb)
-    barrel.save(OUT / "barrel.png")
-    sack = recolor(barrel, (92, 64, 32), (150, 110, 54), (196, 156, 86))
-    if sack is not None:
-        sack.save(OUT / "sack.png")
+    def make_sack() -> Image.Image:
+        im = Image.new("RGBA", (16, 14), (0, 0, 0, 0))
+        px = im.load()
+        jute, dark = (176, 140, 78, 255), (112, 82, 40, 255)
+        for y in range(4, 13):
+            for x in range(2, 14):
+                px[x, y] = dark if x in (2, 13) or y == 12 else jute
+        for x in range(5, 11):
+            px[x, 3] = dark
+            px[x, 2] = jute
+        px[7, 1] = dark
+        px[8, 1] = dark
+        for y in range(6, 11):
+            px[8, y] = dark
+        return im
 
-    lights = Image.open(SRC / "base/castle_lightsources.png").convert("RGBA")
-    lamp = lights.crop((64, 0, 96, 68))
-    bb = lamp.getbbox()
-    if bb:
-        lamp = lamp.crop(bb)
-    lamp.save(OUT / "lantern.png")
+    def make_lantern() -> Image.Image:
+        im = Image.new("RGBA", (12, 20), (0, 0, 0, 0))
+        px = im.load()
+        brass, dark = (196, 148, 64, 255), (96, 68, 28, 255)
+        for y in range(2, 5):
+            px[6, y] = dark
+        for y in range(5, 16):
+            for x in range(3, 9):
+                edge = x in (3, 8) or y in (5, 15)
+                px[x, y] = dark if edge else brass
+        px[5, 8] = (240, 176, 72, 255)
+        px[6, 8] = (255, 214, 120, 255)
+        px[6, 9] = (214, 112, 36, 255)
+        px[4, 16] = dark
+        px[7, 16] = dark
+        return im
 
-    jharokha = Image.new("RGBA", (26, 24), (0, 0, 0, 0))
-    jp = jharokha.load()
-    for y in range(24):
-        for x in range(26):
-            arch_y = 6 + abs(x - 13) // 2
-            frame = y < 3 or x < 2 or x > 23 or (y < arch_y + 3 and y >= arch_y)
-            recess = y >= arch_y + 3 and 3 <= x <= 22 and y < 21
-            if frame:
-                jp[x, y] = SAND_D if x in (0, 25) or y == 0 else SAND
-            elif recess and (x % 4 == 0 or y % 4 == 0):
-                jp[x, y] = SAND_D
-            elif recess:
-                jp[x, y] = (42, 28, 32, 255)
-            elif y >= 21:
-                jp[x, y] = SAND_D
+    def make_bell() -> Image.Image:
+        im = Image.new("RGBA", (12, 14), (0, 0, 0, 0))
+        px = im.load()
+        brass, dark = (212, 164, 72, 255), (96, 68, 28, 255)
+        for y in range(1, 4):
+            px[6, y] = dark
+        ellipse(px, 6, 8, 4, 4, dark, 12, 14)
+        ellipse(px, 6, 8, 3, 3, brass, 12, 14)
+        px[6, 12] = dark
+        px[5, 6] = (240, 210, 140, 255)
+        return im
+
+    def make_diya() -> Image.Image:
+        im = Image.new("RGBA", (10, 8), (0, 0, 0, 0))
+        px = im.load()
+        ellipse(px, 5, 5, 4, 2, CLAY, 10, 8)
+        ellipse(px, 5, 5, 2, 1, (72, 36, 28, 255), 10, 8)
+        px[5, 2] = (255, 214, 120, 255)
+        px[5, 3] = SAFF
+        px[4, 3] = SAFF_L
+        return im
+
+    def make_door() -> Image.Image:
+        im = Image.new("RGBA", (16, 36), (0, 0, 0, 0))
+        px = im.load()
+        wood, dark, brass = (112, 68, 36, 255), (64, 38, 24, 255), (196, 148, 64, 255)
+        for y in range(4, 35):
+            for x in range(1, 15):
+                px[x, y] = dark if x in (1, 14) or y % 7 == 0 else wood
+        for x in range(2, 14):
+            rise = 4 - abs(x - 8) // 2
+            for t in range(3):
+                px[x, rise + t] = SAND if t == 0 else dark
+        for y in range(10, 28, 6):
+            px[4, y] = brass
+            px[11, y] = brass
+        px[12, 18] = brass
+        return im
+
+    def make_stall() -> Image.Image:
+        """Canopy, counter, a brass kettle on a coal angithi, and kulhad cups."""
+        w, h = 168, 64
+        im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        px = im.load()
+        wood, dark = (132, 84, 44, 255), (78, 48, 28, 255)
+        brass, brass_l = (196, 148, 64, 255), (244, 214, 132, 255)
+        for y in range(1, 14):
+            for x in range(2, w - 2):
+                stripe = (x // 6) % 2 == 0
+                px[x, y] = SAFF if stripe else CREAM
+                if y in (1, 13):
+                    px[x, y] = dark
+        for x in range(10, w - 10, 8):
+            px[x, 14] = SAFF
+            px[x, 15] = dark
+            px[x, 16] = dark
+        for y in range(4, 40):
+            px[6, y] = wood
+            px[7, y] = dark
+            px[w - 8, y] = wood
+            px[w - 7, y] = dark
+        for y in range(36, 60):
+            for x in range(12, w - 12):
+                px[x, y] = dark if y in (36, 59) or x in (12, w - 13) else wood
+        # Coal angithi, then a brass kettle large enough to read at 1x.
+        ellipse(px, 48, 40, 14, 6, (42, 28, 24, 255), w, h)
+        ellipse(px, 48, 38, 10, 4, (214, 84, 28, 255), w, h)
+        px[44, 36] = (255, 214, 96, 255)
+        px[48, 36] = (255, 236, 160, 255)
+        px[52, 37] = (255, 180, 64, 255)
+        ellipse(px, 48, 30, 9, 7, brass, w, h)
+        ellipse(px, 48, 28, 6, 4, brass_l, w, h)
+        ellipse(px, 48, 22, 5, 3, brass_l, w, h)
+        px[48, 18] = (120, 84, 32, 255)
+        px[48, 19] = brass
+        for x in range(56, 68):
+            px[x, 28] = brass
+            px[x, 29] = (120, 84, 32, 255)
+        px[67, 30] = brass_l
+        px[40, 26] = brass
+        px[39, 28] = brass
+        px[39, 32] = brass
+        # Kulhads with a cream rim so they read as cups, not brown dots.
+        for cx in (86, 106, 126):
+            ellipse(px, cx, 34, 5, 3, CREAM, w, h)
+            for y in range(34, 44):
+                px[cx - 4, y] = (96, 48, 32, 255)
+                px[cx - 3, y] = CLAY
+                px[cx - 2, y] = (196, 120, 72, 255)
+                px[cx - 1, y] = CLAY
+                px[cx, y] = CLAY
+                px[cx + 1, y] = (96, 48, 32, 255)
+                px[cx + 2, y] = (96, 48, 32, 255)
+            px[cx - 1, 42] = (96, 48, 32, 255)
+        return im
+
+    def make_bench() -> Image.Image:
+        im = Image.new("RGBA", (36, 16), (0, 0, 0, 0))
+        px = im.load()
+        wood, dark = (132, 84, 44, 255), (64, 38, 24, 255)
+        for y in range(4, 8):
+            for x in range(2, 34):
+                px[x, y] = dark if y == 4 else wood
+        for x in (4, 30):
+            for y in range(8, 16):
+                px[x, y] = dark
+                px[x + 1, y] = wood
+        return im
+
+    def make_press() -> Image.Image:
+        """A letterpress: screw handle, iron platen, and a sheet on the bed."""
+        im = Image.new("RGBA", (32, 42), (0, 0, 0, 0))
+        px = im.load()
+        wood, dark, iron, paper = (122, 76, 40, 255), (72, 44, 26, 255), (108, 104, 100, 255), (240, 228, 204, 255)
+        for y in range(10, 38):
+            for x in (3, 4, 27, 28):
+                px[x, y] = wood if x in (4, 27) else dark
+        for x in range(3, 29):
+            px[x, 10] = wood
+            px[x, 11] = dark
+            px[x, 36] = wood
+            px[x, 37] = dark
+        for x in range(8, 24):
+            px[x, 4] = iron
+            px[x, 5] = (168, 164, 156, 255)
+        for y in range(5, 16):
+            px[15, y] = iron
+            px[16, y] = (168, 164, 156, 255)
+        ellipse(px, 16, 3, 3, 2, (168, 164, 156, 255), 32, 42)
+        for y in range(16, 20):
+            for x in range(8, 24):
+                px[x, y] = iron
+        for y in range(22, 32):
+            for x in range(7, 25):
+                px[x, y] = paper
+        for x in range(9, 22, 3):
+            px[x, 25] = (168, 48, 40, 255)
+            px[x, 26] = (168, 48, 40, 255)
+            px[x + 1, 28] = (40, 32, 28, 255)
+        return im
+
+    def make_balcony() -> Image.Image:
+        im = Image.new("RGBA", (48, 32), (0, 0, 0, 0))
+        px = im.load()
+        for y in range(8, 22):
+            for x in range(6, 42):
+                arch = 10 + abs(x - 24) // 3
+                if y < arch:
+                    continue
+                hole = 10 < x < 38 and arch + 2 < y < 20 and (x % 4 != 0) and (y % 4 != 0)
+                px[x, y] = (42, 28, 32, 255) if hole else SAND if y == arch else SAND_D
+        for y in range(22, 28):
+            for x in range(2, 46):
+                px[x, y] = SAND if y < 26 else SAND_D
+        for x in range(4, 44, 6):
+            px[x, 26] = (72, 48, 32, 255)
+            px[x, 27] = (72, 48, 32, 255)
+        return im
+
+    make_trunk().save(OUT / "crate.png")
+    make_matka().save(OUT / "matka.png")
+    make_sack().save(OUT / "sack.png")
+    make_lantern().save(OUT / "lantern.png")
+    make_bell().save(OUT / "bell.png")
+    make_diya().save(OUT / "diya.png")
+    make_door().save(OUT / "door.png")
+    make_stall().save(OUT / "stall.png")
+    make_bench().save(OUT / "bench.png")
+    make_press().save(OUT / "press.png")
+    jharokha = make_balcony()
     jharokha.save(OUT / "jharokha.png")
 
     rows = build_grid()
@@ -873,13 +1073,18 @@ def main() -> None:
                 continue
             if ch in floorish:
                 tile = pavers[(x * 3 + y * 5) % len(pavers)]
-                if x >= 34:
-                    tile = tile.copy()
+                if x >= 34 or ch in "gK":
+                    tile = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
                     px = tile.load()
                     for yy in range(TILE):
                         for xx in range(TILE):
-                            r, g, b, a = px[xx, yy]
-                            px[xx, yy] = (r * 45 // 100, g * 40 // 100, b * 38 // 100, a)
+                            board = (yy // 8) % 2
+                            px[xx, yy] = (104, 66, 40, 255) if board == 0 else (78, 48, 32, 255)
+                            if yy % 8 == 0:
+                                px[xx, yy] = (52, 32, 24, 255)
+                    # A worn runner down the middle of each alcove.
+                    if 10 <= (x * TILE) % 32 <= 22:
+                        pass
                 world.paste(tile, (x * TILE, y * TILE))
                 if ch == "=":
                     world.paste(plate, (x * TILE, y * TILE))
@@ -914,14 +1119,6 @@ def main() -> None:
                 dot(wp, left + t, y, brick_d if t == 0 else brick, world.width, world.height)
                 dot(wp, left + 31 - t, y, brick_d if t == 0 else brick, world.width, world.height)
         cx = left + 16
-        for y in range(top - 14, top + 32):
-            for x in range(left + 6, left + 26):
-                ad = abs(x - cx)
-                rise = 18 if ad < 3 else max(6, 16 - (ad - 3))
-                if y < top - rise + 4:
-                    continue
-                shade = (36, 22, 18, 255) if (x + y) % 2 == 0 else (22, 14, 12, 255)
-                dot(wp, x, y, shade, world.width, world.height)
         for x in range(left + 6, left + 26):
             ad = abs(x - cx)
             rise = 18 if ad < 3 else max(6, 16 - (ad - 3))
@@ -949,13 +1146,69 @@ def main() -> None:
     def paste_prop(im: Image.Image, x: int, y: int) -> None:
         world.alpha_composite(im, (x, y))
 
-    for tx in (4, 11, 21, 29):
-        paste_prop(jharokha, tx * TILE + 3, 2 * TILE + 6)
-    paste_prop(Image.open(OUT / "jaali.png"), 23 * TILE + 5, 2 * TILE + 18)
+    def shopfront(tx: int) -> None:
+        left, top = tx * TILE + 4, 2 * TILE + 8
+        wood, dark = (112, 68, 36, 255), (64, 38, 24, 255)
+        for y in range(top, top + 22):
+            for x in range(left, left + 24):
+                shutter = (x // 4) % 2 == 0
+                dot(wp, x, y, dark if y < top + 3 or shutter else wood, world.width, world.height)
+        for x in range(left - 2, left + 26):
+            dot(wp, x, top - 1, SAND, world.width, world.height)
+            dot(wp, x, top - 2, SAND_D, world.width, world.height)
+
+    def rangoli(cx: int, cy: int) -> None:
+        saff, cream, green = (214, 112, 36, 255), (236, 224, 196, 255), (46, 104, 48, 255)
+        for i in range(-16, 17):
+            for j in range(-16, 17):
+                ring = abs(i) + abs(j)
+                if ring in (14, 15):
+                    dot(wp, cx + i, cy + j, saff, world.width, world.height)
+                elif ring in (8, 9):
+                    dot(wp, cx + i, cy + j, cream, world.width, world.height)
+                elif ring <= 2:
+                    dot(wp, cx + i, cy + j, green, world.width, world.height)
+                elif i == 0 or j == 0:
+                    if 3 < ring < 14 and ring % 2 == 0:
+                        dot(wp, cx + i, cy + j, saff, world.width, world.height)
+
+    paste_prop(jharokha, 3 * TILE + 4, 2 * TILE + 2)
+    paste_prop(jharokha, 29 * TILE, 2 * TILE + 2)
+    paste_prop(Image.open(OUT / "jaali.png"), 23 * TILE + 5, 2 * TILE + 14)
     paste_prop(Image.open(OUT / "notice.png"), 7 * TILE, 2 * TILE + 4)
     paste_prop(Image.open(OUT / "notice.png"), 38 * TILE + 2, 8 * TILE + 2)
     paste_prop(Image.open(OUT / "poster.png"), 16 * TILE, 2 * TILE + 6)
     blit_text(world, "CHALO DILLI", 12 * TILE + 2, 3 * TILE + 8, CREAM, 2)
+    shopfront(26)
+    shopfront(31)
+    rangoli(12 * TILE + 16, 7 * TILE + 18)
+    rangoli(19 * TILE + 8, 6 * TILE + 20)
+    rangoli(15 * TILE + 16, 6 * TILE + 16)
+
+    def dhurrie(x0: int, y0: int, w: int, h: int) -> None:
+        red, tan, edge = (168, 72, 48, 255), (214, 176, 120, 255), (84, 44, 32, 255)
+        for y in range(y0, y0 + h):
+            for x in range(x0, x0 + w):
+                band = ((y - y0) // 3) % 2 == 0
+                dot(wp, x, y, edge if x in (x0, x0 + w - 1) or y in (y0, y0 + h - 1) else red if band else tan, world.width, world.height)
+
+    dhurrie(5 * TILE + 6, 7 * TILE + 8, 78, 36)
+    dhurrie(22 * TILE + 4, 6 * TILE + 10, 52, 28)
+    # Worn patches so the flagstones are not one flat field.
+    for cx, cy, rx in ((9 * TILE, 9 * TILE + 8, 18), (18 * TILE + 8, 9 * TILE, 14), (27 * TILE, 7 * TILE + 8, 16)):
+        ellipse(wp, cx, cy, rx, rx // 2, (168, 132, 88, 255), world.width, world.height)
+    # Papers and a rug inside the leaflet room, so the alcove is not a flat brown box.
+    rug = (120, 42, 36, 255)
+    for y in range(4 * TILE + 18, 6 * TILE + 8):
+        for x in range(35 * TILE + 4, 37 * TILE + 8):
+            if (x + y) % 5 == 0:
+                dot(wp, x, y, (214, 176, 96, 255), world.width, world.height)
+            else:
+                dot(wp, x, y, rug, world.width, world.height)
+    for i, x0 in enumerate((36 * TILE + 6, 37 * TILE + 2)):
+        for y in range(5 * TILE + 8, 5 * TILE + 20):
+            for x in range(x0, x0 + 10):
+                dot(wp, x, y, CREAM if (y + i) % 4 else (200, 60, 48, 255), world.width, world.height)
 
     world.save(OUT / "map.png")
     world.resize((world.width // 2, world.height // 2), Image.NEAREST).save("/tmp/lpc/map-half.png")
@@ -974,9 +1227,9 @@ def main() -> None:
         "leaf": [36, 5],
         "sign": [36, 9],
         "well": [26, 10],
-        "bicycle": [5, 8],
-        "tonga": [16, 11],
-        "officer": [31, 4],
+        "bicycle": [1, 5],
+        "tonga": [18, 7],
+        "officer": [20, 4],
         "guard": [[17, 5], [30, 5], [30, 9], [17, 9]],
     }
     (ROOT / "src" / "grid.json").write_text(json.dumps(meta, indent=2) + "\n")

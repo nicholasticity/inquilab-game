@@ -113,18 +113,18 @@ export function makeArrow(): Pix {
 }
 
 export function makeStickBase(): Pix {
-  const s = 68;
+  const s = 104;
   const p = new Pix(s, s);
   const c = (s - 1) / 2;
   for (let y = 0; y < s; y++) {
     for (let x = 0; x < s; x++) {
       const d = Math.hypot(x - c, y - c);
-      if (d <= 30 && d >= 22) p.force(x, y, d > 28.5 || d < 23.5 ? UMBER : BRASS);
+      if (d <= 50 && d >= 40) p.force(x, y, d > 48 || d < 42 ? UMBER : BRASS);
     }
   }
   for (let i = 0; i < 8; i++) {
     const a = (Math.PI * 2 * i) / 8;
-    p.force(Math.round(c + Math.cos(a) * 26), Math.round(c + Math.sin(a) * 26), CREAM);
+    p.force(Math.round(c + Math.cos(a) * 45), Math.round(c + Math.sin(a) * 45), CREAM);
   }
   return p;
 }
