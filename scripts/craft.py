@@ -182,21 +182,18 @@ def floor_tile(kind: int, crack: bool = False) -> Image.Image:
         [(0, 0, 32, 14), (0, 15, 20, 17), (21, 15, 11, 17)],
         [(0, 0, 15, 15), (16, 0, 16, 22), (0, 16, 15, 16), (16, 23, 16, 9)],
     ]
-    tones = [S7, S7, S8, S6, S7, S7]
+    # One sandstone value. The joint is a hairline, not a second stone colour.
     for n, (x, y, w, h) in enumerate(layouts[kind % 4]):
-        body = tones[(n + kind) % len(tones)]
         for j in range(h):
             for i in range(w):
                 if i == w - 1 or j == h - 1:
-                    c = S6  # hairline joint
+                    c = S6
+                elif crack and n == 0 and i == 4 and j == h // 2:
+                    c = S6
                 else:
-                    c = body
+                    c = S7
                 if 0 <= x + i < 32 and 0 <= y + j < 32:
                     px[x + i, y + j] = c
-    if crack:
-        for x, y in ((6, 20), (7, 21), (8, 21), (9, 22), (10, 23)):
-            if 0 <= x < 32 and 0 <= y < 32 and px[x, y][:3] != S6[:3]:
-                px[x, y] = S5
     return im
 
 
@@ -1434,33 +1431,23 @@ def stall() -> Image.Image:
 
 
 def kolam(px, cx: int, cy: int, mw: int, mh: int) -> None:
-    """A pulli kolam: rice-flour loops around a grid of dots, lotus at the centre."""
+    """Rice flour and saffron powder, painted on the stone. No highlight, no glow."""
     rows = [
-        ".............F.............",
-        "............FFF............",
-        "..F.....................F..",
-        ".F.F...................F.F.",
-        "F...F........uuu......F...F",
-        ".F.F.......uF...Fu.....F.F.",
-        "..F.......u..F.F..u.....F..",
-        ".........u....F....u.......",
-        "........u...uuuuu...u......",
-        "...FFFFFu..u..j..u..uFFFFF.",
-        "........u.u...jjj...u.u....",
-        ".......u.u....j.j....u.u...",
-        "......u..u...j...j...u..u..",
-        ".......u.u....j.j....u.u...",
-        "........u.u...jjj...u.u....",
-        "...FFFFFu..u..j..u..uFFFFF.",
-        "........u...uuuuu...u......",
-        ".........u....F....u.......",
-        "..F.......u..F.F..u.....F..",
-        ".F.F.......uF...Fu.....F.F.",
-        "F...F........uuu......F...F",
-        ".F.F...................F.F.",
-        "..F.....................F..",
-        "............FFF............",
-        ".............F.............",
+        "....f...f...f...f...f....",
+        "...f.f.f.f.f.f.f.f.f.f...",
+        "....f...f...f...f...f....",
+        "..u...................u..",
+        ".u..f...............f..u.",
+        "u...uuu...........uuu...u",
+        ".u.u.....f.....f.....u.u.",
+        "..u.........y.........u..",
+        ".u.u.....f.....f.....u.u.",
+        "u...uuu...........uuu...u",
+        ".u..f...............f..u.",
+        "..u...................u..",
+        "....f...f...f...f...f....",
+        "...f.f.f.f.f.f.f.f.f.f...",
+        "....f...f...f...f...f....",
     ]
     blit_at = from_rows(rows)
     paste_px = blit_at.load()
@@ -1597,8 +1584,7 @@ def paint_map(rows: list[str]) -> Image.Image:
                 wp[x, y] = S7 if x < 24 * tile + 50 else S6
     _text(world, "CHALO DILLI", 24 * tile + 4, 3 * tile + 8, X, 2)
 
-    kolam(wp, 6 * tile + 16, 6 * tile + 12, world.width, world.height)
-    kolam(wp, 12 * tile + 16, 7 * tile + 18, world.width, world.height)
+    kolam(wp, 5 * tile + 16, 9 * tile + 8, world.width, world.height)
     dhurrie(wp, 4 * tile + 8, 8 * tile + 8, 72, 26, world.width, world.height)
     dhurrie(wp, 28 * tile + 4, 7 * tile + 10, 52, 24, world.width, world.height)
 

@@ -16,7 +16,7 @@ from PIL import Image
 from craft import (
     A, AH, AL, B1, B2, B3, B4, BD, BH, BL, BR, C, D, E, F, FW,
     G, GD, GH, GL, K, L, LH, M, ML, O, OL, P, Q, R, S5, S6, S7, S8,
-    SA, SF, SL, SP, W, WH, WT, X, Y,
+    SA, SF, SL, SP, W, WH, WT, X, Y, Z,
     blank, blit, nearest, paste, put, snap,
 )
 
@@ -311,52 +311,44 @@ def _flame(px, x: int, y: int, hot: bool, w: int, h: int) -> None:
 
 
 def _draw_bell() -> Image.Image:
-    """Flared temple bell: wood yoke, narrow crown, widening waist, sound bow, clapper."""
-    w, h = 26, 34
+    """A shop bell on a wall bracket: short, wide, brass, with a clapper under the lip."""
+    w, h = 30, 24
     im = blank(w, h)
     px = im.load()
-    cx = 13
-    for x in range(8, 19):
-        put(px, x, 0, W, w, h)
-        put(px, x, 1, OL, w, h)
-        put(px, x, 2, WH, w, h)
-    put(px, cx, 4, BD, w, h)
-    put(px, cx, 5, BL, w, h)
-    for i, y in enumerate(range(6, 26)):
-        t = i / 19
-        # Stay narrow, then the lip below does the flare. A cone reads as a mushroom.
-        half = 4 + int(t * t * 2)
+    # Bracket arm and a brace, so it is mounted, not standing.
+    for x in range(2, 16):
+        put(px, x, 3, WH if x < 8 else OL, w, h)
+        put(px, x, 4, W, w, h)
+    for i in range(6):
+        put(px, 3 + i, 5 + i, OL, w, h)
+        put(px, 4 + i, 5 + i, W, w, h)
+    put(px, 15, 5, BD, w, h)
+    put(px, 15, 6, BR, w, h)
+    cx = 18
+    # Crown, then a body that is wider than it is tall, then the lip.
+    for y, half in ((7, 3), (8, 4), (9, 5), (10, 6), (11, 7), (12, 8), (13, 9), (14, 10)):
         for x in range(cx - half, cx + half + 1):
             edge = x == cx - half or x == cx + half
             if edge:
-                c = BR if x < cx else Q
-            elif x < cx - 1 and i % 5 == 0:
-                c = BH
-            elif x < cx:
+                c = BH if x < cx else BR
+            elif x < cx - 2:
                 c = BL
-            elif x == cx:
+            elif x < cx:
                 c = BD
             else:
                 c = BR
             put(px, x, y, c, w, h)
-    # Sound bow: a lip wider than the waist, with the mouth in shadow.
-    for y, half in ((26, 8), (27, 11), (28, 12), (29, 12)):
-        for x in range(cx - half, cx + half + 1):
-            edge = x <= cx - half + 1 or x >= cx + half - 1
-            if edge:
-                c = BH if x < cx else BR
-            elif y == 29:
-                c = P
-            elif x < cx:
-                c = BL
-            else:
-                c = BD
-            put(px, x, y, c, w, h)
-    # Clapper hanging under the lip.
-    for x in range(cx - 1, cx + 2):
-        put(px, x, 31, R, w, h)
-        put(px, x, 32, P, w, h)
-    put(px, cx, 33, Q, w, h)
+    for x in range(cx - 11, cx + 12):
+        put(px, x, 15, BH if x < cx else BL, w, h)
+        put(px, x, 16, BR if x < cx + 8 else Q, w, h)
+    for x in range(cx - 9, cx + 10):
+        put(px, x, 17, P, w, h)
+    # Clapper below the mouth.
+    put(px, cx, 18, R, w, h)
+    put(px, cx - 1, 19, P, w, h)
+    put(px, cx, 19, P, w, h)
+    put(px, cx + 1, 19, R, w, h)
+    put(px, cx, 20, Q, w, h)
     return im
 
 
@@ -412,43 +404,35 @@ def _draw_kettle() -> Image.Image:
 
 
 def _draw_sack() -> Image.Image:
-    """Jute sack with a tied neck and vertical folds. The container sheet had barrels, not sacks."""
-    w, h = 30, 38
+    """A squat jute bori. Wider than it is tall, lumpy, tied with a small knot."""
+    w, h = 34, 24
     im = blank(w, h)
     px = im.load()
-    # Slumped jute body. Vertical folds, no hoop lines, so it is not a barrel.
-    for y in range(8, 37):
-        t = (y - 8) / 28
-        half = int(6 + t * 8)
-        if y > 33:
-            half -= 2
-        for x in range(15 - half, 16 + half):
-            edge = x <= 15 - half + 1 or x >= 15 + half - 1
-            seam = (x - 15) % 6 == 0
-            if edge or y > 34:
+    cx, cy = 16, 14
+    for y in range(h):
+        for x in range(w):
+            dx = (x - cx) / 15
+            dy = (y - cy) / 9
+            # A lump on the left shoulder and a sag on the right.
+            bulge = 0.12 if x < cx and y < cy else -0.06 if x > cx + 4 else 0
+            d = dx * dx + dy * dy - bulge
+            if d > 1:
+                continue
+            weave = (x // 2 + y // 2) % 2 == 0
+            if d > 0.82:
                 c = W
-            elif seam:
-                c = C
-            elif x < 12 and y < 18:
-                c = E
-            elif x < 14:
-                c = OL
+            elif weave:
+                c = OL if x < cx else O
             else:
-                c = O
+                c = E if x < cx - 2 and y < cy else O
             put(px, x, y, c, w, h)
-    # Two ears and a knot, the thing that makes a sack a sack.
-    for y in range(2, 8):
-        put(px, 10, y, OL, w, h)
-        put(px, 11, y, E, w, h)
-        put(px, 19, y, E, w, h)
-        put(px, 20, y, OL, w, h)
-    for x in range(12, 19):
-        put(px, x, 6, C, w, h)
-        put(px, x, 7, OL, w, h)
-    put(px, 14, 4, W, w, h)
-    put(px, 15, 3, O, w, h)
-    put(px, 15, 4, WH, w, h)
-    put(px, 16, 4, W, w, h)
+    # The tie is a knot, not a hood.
+    for x in range(cx - 2, cx + 3):
+        put(px, x, 4, C, w, h)
+        put(px, x, 5, OL, w, h)
+    put(px, cx, 2, WH, w, h)
+    put(px, cx, 3, E, w, h)
+    put(px, cx - 1, 3, O, w, h)
     return im
 
 
@@ -540,16 +524,20 @@ def _draw_plate(floor: Image.Image) -> Image.Image:
 
 
 def _draw_steam() -> list[Image.Image]:
+    """Three wisps, two pixels wide, so the steam reads at phone size."""
     frames = []
     shapes = [
-        ["  f ", " f F", "f   ", " F f", "  f "],
-        [" F  ", "f F ", "  f ", " F  ", "f   "],
-        ["   f", " f  ", "F f ", "  F ", " f  "],
+        [(8, 2), (7, 4), (9, 4), (6, 8), (8, 8), (10, 8), (5, 13), (7, 13), (9, 14), (12, 16), (8, 18)],
+        [(6, 1), (8, 3), (10, 3), (7, 7), (9, 8), (5, 12), (8, 12), (11, 13), (7, 17), (10, 18)],
+        [(9, 2), (7, 5), (11, 5), (6, 9), (9, 10), (12, 9), (8, 14), (11, 15), (6, 18), (9, 19)],
     ]
-    for rows in shapes:
-        im = blank(16, 22)
-        blit(im, rows, 4, 2)
-        blit(im, rows, 6, 8)
+    for pts in shapes:
+        im = blank(18, 26)
+        px = im.load()
+        for x, y in pts:
+            put(px, x, y, F, 18, 26)
+            put(px, x + 1, y, FW, 18, 26)
+            put(px, x, y + 1, E, 18, 26)
         frames.append(im)
     return frames
 
@@ -584,6 +572,48 @@ def _draw_leaflet() -> Image.Image:
     return im
 
 
+def _draw_matka(squat: bool) -> Image.Image:
+    """Round-bellied terracotta, a short neck, and a wide rim. Not an amphora."""
+    w, h = (32, 24) if squat else (28, 28)
+    im = blank(w, h)
+    px = im.load()
+    cx = w // 2
+    rim_y = 3
+    rim_rx = 8 if squat else 7
+    for y in range(h):
+        for x in range(w):
+            # Rim
+            if rim_y - 1 <= y <= rim_y + 1:
+                dx = abs(x - cx)
+                if dx <= rim_rx:
+                    px[x, y] = AH if y == rim_y - 1 and dx < rim_rx - 1 else AL if dx < rim_rx else A
+                    continue
+            # Short neck
+            if rim_y + 1 < y <= rim_y + 4 and abs(x - cx) <= 3:
+                px[x, y] = AL if x < cx else A
+                continue
+            belly_y = 15 if squat else 17
+            ry = 8 if squat else 9
+            rx = 14 if squat else 12
+            dx = (x - cx) / rx
+            dy = (y - belly_y) / ry
+            d = dx * dx + dy * dy
+            if d > 1 or y < rim_y + 3:
+                continue
+            if d > 0.86:
+                c = C
+            elif x < cx - 3 and y < belly_y:
+                c = AH
+            elif x < cx:
+                c = AL
+            elif y > belly_y + 2:
+                c = C
+            else:
+                c = A
+            px[x, y] = c
+    return im
+
+
 def _tulsi(pot: Image.Image) -> Image.Image:
     """A real clay pot, with basil drawn at the pot's own outline weight."""
     im = blank(pot.width + 8, pot.height + 16)
@@ -613,25 +643,20 @@ def _diyas(bowl: Image.Image) -> tuple[Image.Image, Image.Image]:
 
 
 def _glow() -> Image.Image:
-    im = blank(56, 36)
+    """Three hard rings. The floor shows through the gaps and the dither."""
+    im = blank(36, 20)
     px = im.load()
-    for y in range(36):
-        for x in range(56):
-            dx = (x - 28) / 28
-            dy = (y - 14) / 16
-            d = dx * dx + dy * dy
-            if d > 1:
-                continue
-            if d < 0.15:
-                c = SP
-            elif d < 0.4:
-                c = BH if (x + y) % 2 == 0 else BL
-            elif d < 0.7:
-                c = SL if (x * 2 + y) % 3 else BD
-            else:
-                c = SA if (x + y) % 2 == 0 else (0, 0, 0, 0)
-            if c[0]:
-                px[x, y] = c if len(c) == 4 else (*c, 255)
+    for y in range(20):
+        for x in range(36):
+            dx = (x - 17.5) / 17
+            dy = (y - 9.5) / 9
+            d = (dx * dx + dy * dy) ** 0.5
+            if 0.22 <= d <= 0.40:
+                px[x, y] = F
+            elif 0.55 <= d <= 0.72 and (x + y) % 2 == 0:
+                px[x, y] = SL
+            elif 0.84 <= d <= 0.98 and (x + y) % 2 == 0:
+                px[x, y] = SA
     return im
 
 
@@ -752,27 +777,83 @@ def _lanterns() -> tuple[Image.Image, Image.Image]:
 
 
 def _laundry() -> tuple[Image.Image, Image.Image]:
-    deco = _deco()
-    # Rope, pegs, a white sheet, a red cloth, and a tan cloth.
-    line = snap(crop(deco, (258, 188, 385, 220)))
-    return line, _sway(line, 3)
+    """A line, pegs, a cream kurta and a saffron dupatta. No denim."""
+    w, h = 88, 26
+    im = blank(w, h)
+    px = im.load()
+    for x in range(2, w - 2):
+        put(px, x, 2, D, w, h)
+        put(px, x, 3, E, w, h)
+    for peg in (10, 28, 52, 74):
+        put(px, peg, 1, OL, w, h)
+        put(px, peg, 2, WH, w, h)
+        put(px, peg, 4, W, w, h)
+    # Kurta.
+    for y in range(6, 22):
+        half = 7 if y < 18 else 5
+        for x in range(16 - half, 16 + half):
+            c = FW if x < 14 and y < 12 else F if x < 18 else E
+            put(px, x, y, c, w, h)
+    # Dupatta, draped.
+    for y in range(6, 24):
+        sway = 1 if 10 < y < 18 else 0
+        for x in range(40 + sway, 58 + sway):
+            c = SL if x < 48 else SF if y % 3 else SA
+            put(px, x, y, c, w, h)
+    # A second kurta, maroon.
+    for y in range(7, 20):
+        for x in range(64, 76):
+            put(px, x, y, Z if x < 69 and y < 12 else Y if x < 72 else X, w, h)
+    return im, _sway(im, 3)
+
+
+def _rock_pigeon(bob: int, pecking: bool) -> Image.Image:
+    """A grey rock pigeon in side view. Darker head, two wing bars, pink feet."""
+    w, h = 24, 16
+    im = blank(w, h)
+    px = im.load()
+    head_y = 4 + bob + (3 if pecking else 0)
+    body_y = 8 + bob
+    # Tail.
+    for i, x in enumerate(range(2, 7)):
+        put(px, x, body_y - 1 + i // 3, R, w, h)
+        put(px, x, body_y + i // 3, M, w, h)
+    # Body.
+    for y in range(h):
+        for x in range(w):
+            dx = (x - 12) / 7
+            dy = (y - body_y) / 4
+            if dx * dx + dy * dy > 1:
+                continue
+            bar = x in (11, 14) and y >= body_y - 1
+            if bar:
+                c = P
+            elif x < 10 and y < body_y:
+                c = L
+            elif y < body_y:
+                c = R
+            else:
+                c = M
+            px[x, y] = c
+    # Head.
+    for y in range(head_y - 2, head_y + 3):
+        for x in range(16, 21):
+            if (x - 18) ** 2 + (y - head_y) ** 2 <= 5:
+                px[x, y] = P if x > 17 else R
+    put(px, 21, head_y, AL, w, h)
+    put(px, 22, head_y, A, w, h)
+    put(px, 18, head_y - 1, K, w, h)
+    # Feet on the same ground line in every frame.
+    for x in (10, 15):
+        put(px, x, 14, AL, w, h)
+        put(px, x, 15, A, w, h)
+        put(px, x - 1, 15, A, w, h)
+        put(px, x + 1, 15, A, w, h)
+    return im
 
 
 def _pigeons() -> tuple[Image.Image, Image.Image, Image.Image]:
-    bird = Image.open(BIRD_PNG).convert("RGBA")
-    frames = []
-    for col in range(3):
-        fr = bird.crop((col * 32, 7 * 32, col * 32 + 32, 8 * 32))
-        frames.append(_pigeon_grey(fr))
-    # Union trim so the feet stay aligned.
-    boxes = [f.getbbox() for f in frames]
-    x0 = min(b[0] for b in boxes)
-    y0 = min(b[1] for b in boxes)
-    x1 = max(b[2] for b in boxes)
-    y1 = max(b[3] for b in boxes)
-    trimmed = [f.crop((x0, y0, x1, y1)) for f in frames]
-    peck = _peck(trimmed[0])
-    return trimmed[1], trimmed[2], peck
+    return _rock_pigeon(0, False), _rock_pigeon(1, False), _rock_pigeon(0, True)
 
 
 def _lattice() -> Image.Image:
@@ -829,63 +910,103 @@ def _jharokha(lattice: Image.Image) -> Image.Image:
     return im
 
 
-def _stall(kettle: Image.Image, degchi: Image.Image) -> Image.Image:
-    deco = _deco()
-    # Front awning: saffron and cream stripes, scalloped valance.
-    awning = snap(crop(deco, (266, 888, 320, 972)))
-    # Plank counter only. The row under it is a different prop.
-    counter = snap(crop(deco, (292, 1002, 400, 1034)))
-    width = max(awning.width * 3 - 6, counter.width, 128)
-    im = blank(width + 4, awning.height + counter.height + 8)
-    for i in range(3):
-        paste(im, awning, (2 + i * (awning.width - 2), 0))
-    counter_y = awning.height - 4
-    paste(im, counter, ((im.width - counter.width) // 2, counter_y))
-    foot = counter_y + counter.height
-    paste(im, degchi, (8, foot - degchi.height))
-    paste(im, kettle, (im.width - kettle.width - 6, foot - kettle.height))
-    im = trim(im)
-    # A scrap from the next sheet row hangs under the counter. Clear it.
+def _stall(kettle: Image.Image, _degchi: Image.Image) -> Image.Image:
+    """One striped awning on two posts, a plank counter, a small pot and the kettle."""
+    w, h = 104, 58
+    im = blank(w, h)
     px = im.load()
-    for y in range(im.height - 8, im.height):
-        for x in range(im.width // 2 - 6, im.width // 2 + 16):
-            if px[x, y][3]:
-                px[x, y] = (0, 0, 0, 0)
-    return trim(im)
+    # Posts.
+    for x in (8, 92):
+        for y in range(16, 56):
+            put(px, x, y, WH if y < 20 else OL, w, h)
+            put(px, x + 1, y, W, w, h)
+            put(px, x + 2, y, O, w, h)
+    # Awning cloth between the posts, with a short valance.
+    for y in range(4, 22):
+        for x in range(4, 100):
+            stripe = (x // 4) % 2 == 0
+            if y >= 18 and (x + y) % 4 == 0:
+                continue
+            if y == 4:
+                c = SA
+            elif stripe:
+                c = SF if y < 16 else SA
+            else:
+                c = F if y < 16 else E
+            put(px, x, y, c, w, h)
+    # Counter.
+    for y in range(40, 54):
+        for x in range(12, 92):
+            plank = (y // 3) % 2 == 0
+            c = W if x in (12, 91) else WH if plank and x < 50 else OL if plank else O
+            put(px, x, y, c, w, h)
+    # A counter-top degchi, not a cauldron. Bottom sits on the counter.
+    pot_y = 34
+    for y in range(pot_y, 46):
+        half = 8 if y < 42 else 6
+        for x in range(28 - half, 28 + half):
+            edge = abs(x - 28) >= half - 1
+            if y < pot_y + 3:
+                c = SL if abs(x - 28) < 4 else A
+            elif edge:
+                c = C
+            elif x < 26:
+                c = AL
+            else:
+                c = A
+            put(px, x, y, c, w, h)
+    # Kettle on the right of the counter. Its top is near y=22, where the steam starts.
+    paste(im, kettle, (58, 22))
+    return im
 
 
 def _cart() -> Image.Image:
-    deco = _deco()
-    # Both spoked wheels and the shafts. Keep every pixel in the crop.
-    # Shafts plus both spoked wheels. Stop before the next cart and the awning row.
-    cart = snap(trim(deco.crop((7, 758, 152, 799))))
-    food = Image.open(FOOD_PNG).convert("RGBA")
-    produce = []
-    for col, row in ((2, 0), (4, 0), (1, 1), (5, 1)):
-        cell = food.crop((col * 32, row * 32, col * 32 + 32, row * 32 + 32))
-        if cell.getbbox():
-            item = snap(trim(cell))
-            if item.width <= 20 and item.height <= 20:
-                produce.append(item)
-    x = 8
-    bed = max(0, cart.height // 2 - 8)
-    for item in produce[:4]:
-        if x + item.width > cart.width - 16:
-            break
-        paste(cart, item, (x, bed))
-        x += item.width + 1
-    # A pitchfork from the next object on the sheet sits past a clear gap.
-    px = cart.load()
-    cut = cart.width
-    for x in range(cart.width - 1, cart.width // 2, -1):
-        empty = all(px[x, y][3] < 128 for y in range(cart.height))
-        if empty:
-            cut = x
-        elif cut < cart.width:
-            break
-    if cut < cart.width - 4:
-        cart = trim(cart.crop((0, 0, cut, cart.height)))
-    return cart
+    """A wooden thela: two wheels on one ground line, two handles, produce on the bed."""
+    w, h = 72, 40
+    im = blank(w, h)
+    px = im.load()
+    ground = 36
+
+    def wheel(cx: int) -> None:
+        cy = ground - 8
+        for y in range(cy - 9, cy + 10):
+            for x in range(cx - 9, cx + 10):
+                d = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+                if 6.2 <= d <= 8.2:
+                    put(px, x, y, P if d > 7.4 else R, w, h)
+                elif d < 6 and (x == cx or y == cy or abs(x - cx) == abs(y - cy)):
+                    put(px, x, y, L, w, h)
+        put(px, cx, cy, BD, w, h)
+        put(px, cx - 1, cy - 1, BH, w, h)
+
+    wheel(22)
+    wheel(52)
+    # Handles, behind the bed, on the same level as the plank not floating above it.
+    for y in (22, 26):
+        for x in range(2, 20):
+            put(px, x, y, WH if y == 22 else OL, w, h)
+            put(px, x, y + 1, W, w, h)
+    # Bed.
+    for y in range(18, 30):
+        for x in range(16, 62):
+            if y in (18, 29) or x in (16, 61):
+                c = W
+            elif (x // 6) % 2 == 0:
+                c = OL
+            else:
+                c = O
+            put(px, x, y, c, w, h)
+    # Onions, tomatoes, one gourd. All of them sit on the planks.
+    for cx, cy, col, hi in (
+        (24, 22, A, AL), (30, 23, Y, Z), (36, 21, A, AH),
+        (42, 23, SF, SL), (48, 22, Y, Z), (33, 18, GL, GH),
+    ):
+        rx = 4 if col == GL else 3
+        for y in range(cy - 2, cy + 3):
+            for x in range(cx - rx, cx + rx):
+                if (x - cx) ** 2 + (y - cy) ** 2 <= rx * rx:
+                    put(px, x, y, hi if x < cx and y < cy else col, w, h)
+    return im
 
 
 def _crate() -> Image.Image:
@@ -900,50 +1021,88 @@ def _crate() -> Image.Image:
 
 
 def _bench() -> Image.Image:
-    deco = _deco()
-    band = deco.crop((0, 1000, 400, 1250))
-    comps = [c for c in _components(band, 200) if c[1] > 40 and 10 <= c[2] <= 36]
-    comps.sort(key=lambda c: c[1], reverse=True)
-    if not comps:
-        return snap(crop(deco, (140, 1040, 240, 1120)))
-    c = comps[0]
-    im = snap(band.crop((c[3], c[4], c[5], c[6])))
-    if im.width > 120:
-        im = trim(im.crop((0, 0, 104, im.height)))
+    """A wooden charpoy. A folded dupatta lies on the tape. No hanging clothes."""
+    w, h = 64, 26
+    im = blank(w, h)
+    px = im.load()
+    for x in (4, 56):
+        for y in range(8, 24):
+            put(px, x, y, WH if x == 4 else OL, w, h)
+            put(px, x + 1, y, W, w, h)
+    for y in (6, 16):
+        for x in range(4, 60):
+            put(px, x, y, WH if y == 6 else OL, w, h)
+            put(px, x, y + 1, W, w, h)
+    for y in range(8, 16):
+        for x in range(8, 56):
+            put(px, x, y, E if (x // 2 + y) % 2 == 0 else F, w, h)
+    for y in range(9, 15):
+        for x in range(34, 54):
+            put(px, x, y, SL if y < 12 else SF, w, h)
+    put(px, 36, 10, SP, w, h)
     return im
 
 
 def _well() -> Image.Image:
-    """Top-down baoli: a thick sandstone ring, dark water, a brass bucket on the lip."""
-    w, h = 64, 48
+    """A raised stone mouth, a wooden pulley frame, a rope and a bucket."""
+    w, h = 52, 70
     im = blank(w, h)
     px = im.load()
+    # Two posts and a crossbar.
+    for x in (14, 36):
+        for y in range(4, 40):
+            put(px, x, y, WH if x == 14 else OL, w, h)
+            put(px, x + 1, y, OL, w, h)
+            put(px, x + 2, y, W, w, h)
+    for x in range(14, 40):
+        put(px, x, 4, WH, w, h)
+        put(px, x, 5, OL, w, h)
+        put(px, x, 6, W, w, h)
+    # Pulley.
+    for y in range(8, 16):
+        for x in range(22, 30):
+            d = (x - 25) ** 2 + (y - 11) ** 2
+            if 6 <= d <= 12:
+                put(px, x, y, BD if x < 25 else BR, w, h)
+    # Rope down to the bucket.
+    for y in range(15, 36):
+        put(px, 26, y, E, w, h)
+        put(px, 27, y, D, w, h)
+    for y in range(34, 42):
+        for x in range(22, 32):
+            put(px, x, y, OL if y < 36 else O, w, h)
+    put(px, 24, 35, WH, w, h)
+    # Raised circular parapet. The near side is taller, so it reads as a wall, not a pit.
+    cx, cy = 26, 54
     for y in range(h):
         for x in range(w):
-            dx = (x - 31) / 26
-            dy = (y - 24) / 16
+            dx = (x - cx) / 22
+            dy = (y - cy) / 12
             d = dx * dx + dy * dy
-            if d > 1:
+            if d > 1 or d < 0.42:
+                if d <= 0.42 and y > 40:
+                    px[x, y] = WT if (x + y) % 4 else P
                 continue
-            ang = int((x / 8) + (y / 10))
-            if d > 0.72:
-                if d > 0.94:
-                    c = S5 if x > 34 or y > 28 else S6
-                elif x < 28 and y < 22:
-                    c = S8 if ang % 2 == 0 else S7
-                else:
-                    c = S6 if ang % 2 == 0 else S5
-                # Block joints in the coping.
-                if int(x / 7) != int((x - 1) / 7) or int(y / 6) != int((y - 1) / 6):
-                    c = S5 if d < 0.9 else Q
-                px[x, y] = c
-            elif d > 0.58:
-                px[x, y] = Q if y > 24 else S5
+            course = int((y + x / 3) / 3) % 2
+            if d > 0.88:
+                c = S5
+            elif y > cy and course == 0:
+                c = S6
+            elif y > cy:
+                c = S7
+            elif x < cx:
+                c = S8
             else:
-                px[x, y] = WT if (x + y) % 3 else P
-                if x < 26 and y < 20 and (x * 3 + y) % 7 == 0:
-                    px[x, y] = LH
-    blit(im, [" nN ", "nB*n", " nN "], 40, 8)
+                c = S7
+            px[x, y] = c
+    # Bucket hangs in front of the mouth, so the well is not a bare pit.
+    for y in range(36, 44):
+        for x in range(21, 33):
+            put(px, x, y, OL if y < 38 else O, w, h)
+    put(px, 23, 37, WH, w, h)
+    for y in range(16, 36):
+        put(px, 26, y, E, w, h)
+        put(px, 27, y, D, w, h)
     return im
 
 
@@ -989,7 +1148,7 @@ def _food_bits() -> list[Image.Image]:
 
 
 def build() -> dict[str, Image.Image]:
-    pot, bowl = _matka_and_bowl()
+    _pot, bowl = _matka_and_bowl()
     kettle = _kettle()
     degchi = _degchi()
     lattice = _lattice()
@@ -999,9 +1158,10 @@ def build() -> dict[str, Image.Image]:
     d0, d1 = _diyas(bowl)
     steam = _draw_steam()
     props: dict[str, Image.Image] = {
-        "matka": pot,
+        "matka": _draw_matka(False),
+        "matka2": _draw_matka(True),
         "sack": _sack(),
-        "tulsi": _tulsi(pot),
+        "tulsi": _tulsi(_draw_matka(False)),
         "kettle": kettle,
         "kulhad": bowl,
         "bell": _draw_bell(),

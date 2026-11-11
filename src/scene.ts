@@ -91,6 +91,8 @@ export class Yard extends Phaser.Scene {
   private gy = anchor(GUARD_NODES[0].x, GUARD_NODES[0].y).y;
   private gFacing: Facing = "right";
   private gState: GState = "patrol";
+  private chaseStuck = 0;
+  private chaseBest = 9999;
   private gTimer = 0;
   private gNode = 0;
   private gIdle = 0;
@@ -152,6 +154,7 @@ export class Yard extends Phaser.Scene {
   private motes: Phaser.GameObjects.Image[] = [];
   private glows: Phaser.GameObjects.Image[] = [];
   private steam!: Phaser.GameObjects.Image;
+  private steamBase = 0;
   private officer!: Phaser.GameObjects.Sprite;
   private oShadow!: Phaser.GameObjects.Image;
   private ox = anchor(OFFICER_A.x, OFFICER_A.y).x;
@@ -185,6 +188,7 @@ export class Yard extends Phaser.Scene {
     image("well");
     image("sack");
     image("matka");
+    image("matka2");
     image("laundry");
     image("laundryb", "laundry-b");
     image("shadow");
@@ -379,20 +383,17 @@ export class Yard extends Phaser.Scene {
       return img;
     };
     const glowAt = (x: number, y: number) => {
-      const glow = this.world(this.add.image(x, y, "glow").setOrigin(0.5, 0.6).setAlpha(0.55).setDepth(2));
-      glow.setBlendMode(Phaser.BlendModes.ADD);
+      // A floor pool, not a bloom. Normal blend keeps the rings from washing the wall.
+      const glow = this.world(this.add.image(x, y, "glow").setOrigin(0.5, 0.5).setAlpha(0.85).setDepth(2));
       this.glows.push(glow);
     };
-    this.world(this.add.image(WELL.x * TILE, WELL.y * TILE + 8, "well").setOrigin(0, 0).setDepth((WELL.y + 2) * TILE));
-    drop("matka", 8, 5);
-    drop("sack", 9, 5);
+    this.world(this.add.image(WELL.x * TILE - 8, (WELL.y + 2) * TILE - 2, "well").setOrigin(0, 1).setDepth((WELL.y + 2) * TILE));
+    // The solid pot tiles, and no more. Two matka shapes, one tulsi, two boris.
     drop("tulsi", 6, 4);
     drop("matka", 10, 4);
-    drop("tulsi", 14, 4);
-    drop("matka", 7, 9);
-    drop("sack", 7, 10);
-    drop("tulsi", 28, 6);
-    drop("tulsi", 22, 10);
+    drop("sack", 14, 4);
+    drop("matka", 8, 5);
+    drop("matka2", 9, 5);
     drop("pillar", 12, 6);
     const bike = anchor(BICYCLE.x, BICYCLE.y);
     this.world(this.add.image(bike.x + 4, bike.y, "bicycle").setOrigin(0.35, 1).setDepth(bike.y));
@@ -404,7 +405,7 @@ export class Yard extends Phaser.Scene {
     this.world(this.add.image(14 * TILE + 20, 10 * TILE + 16, "bench").setOrigin(0.5, 1).setDepth(10 * TILE + 16));
     drop("press", 35, 6);
     drop("sack", 37, 6);
-    drop("matka", 35, 9);
+    drop("matka2", 35, 9);
     // Bracketed jharokhas. The sill hangs into the yard, so the player can walk in front of it.
     for (const x of [9 * TILE + 16, 17 * TILE]) {
       const y = 4 * TILE + 8;
@@ -413,32 +414,27 @@ export class Yard extends Phaser.Scene {
     for (const x of [6, 19, 22, 30]) {
       const lx = x * TILE + 16;
       this.lanterns.push(this.world(this.add.image(lx, TILE + 8, "lantern").setOrigin(0.5, 0).setDepth(3 * TILE)));
-      glowAt(lx, 3 * TILE + 8);
+      // The notice owns the wall under the first lantern. Its pool would wash the poster.
+      if (x !== 6) glowAt(lx, 5 * TILE + 6);
     }
-    for (const [x, y] of [[8, 4], [27, 4], [36, 4], [36, 9]] as const) {
+    for (const [x, y] of [[27, 4], [36, 4], [36, 9]] as const) {
       this.diyas.push(this.world(this.add.image(x * TILE + 16, y * TILE + 8, "diya").setOrigin(0.5, 1).setDepth((y + 1) * TILE)));
-      glowAt(x * TILE + 16, y * TILE + 4);
     }
-    for (const x of [70, 20 * TILE]) {
-      const cloth = this.world(this.add.image(x, 2 * TILE + 4, "laundry").setOrigin(0, 0).setDepth(4 * TILE));
+    // Left of the notice, clear of both jharokhas. A second line past the east balcony.
+    for (const x of [112, 22 * TILE]) {
+      const cloth = this.world(this.add.image(x, 2 * TILE + 18, "laundry").setOrigin(0, 0).setDepth(4 * TILE));
       cloth.setData("base", "laundry");
       this.laundry.push(cloth);
     }
-    // Steam climbs off the degchi on the left of the stall counter.
-    this.steam = this.world(this.add.image(8 * TILE + 36, 11 * TILE - 52, "steam0").setOrigin(0.5, 1).setDepth(11 * TILE));
+    // The kettle is the right-hand pot on the stall. Steam starts at its spout.
+    this.steamBase = stallY - 34;
+    this.steam = this.world(this.add.image(8 * TILE + 76, this.steamBase, "steam0").setOrigin(0.5, 1).setDepth(stallY));
     // Two birds on the left ledge, one on the ledge further along the wall.
     for (const x of [24, 48, 15 * TILE + 28]) {
       const y = TILE + 30;
       const bird = this.world(this.add.image(x, y, "pigeon").setOrigin(0.5, 1).setDepth(y + 8));
       bird.setData("home", y);
       this.pigeons.push(bird);
-    }
-    for (const [x, y, p] of [[180, 200, 0.2], [420, 240, 1.4], [300, 160, 2.2], [640, 210, 3.1], [260, 300, 4.0]] as const) {
-      const mote = this.world(this.add.image(x, y, "mote").setDepth(y).setAlpha(0.7));
-      mote.setData("homeX", x);
-      mote.setData("homeY", y);
-      mote.setData("p", p);
-      this.motes.push(mote);
     }
   }
 
@@ -941,7 +937,7 @@ export class Yard extends Phaser.Scene {
   private updateGuard(dt: number): void {
     const threat = this.threatened();
     if (this.gState === "patrol") {
-      if (threat) this.enterSus();
+      if (threat && this.guardOnScreen()) this.enterSus();
       else this.patrol(dt);
     } else if (this.gState === "sus") {
       this.gTimer -= dt;
@@ -956,6 +952,8 @@ export class Yard extends Phaser.Scene {
       if (this.gLost > 2000) {
         this.gState = "patrol";
         this.gLost = 0;
+        this.chaseStuck = 0;
+        this.chaseBest = 9999;
       } else {
         this.chase(dt);
         if (this.invuln <= 0 && Math.hypot(this.px - this.gx, this.py - this.gy) < 22) this.catchPlayer();
@@ -998,6 +996,14 @@ export class Yard extends Phaser.Scene {
     }
   }
 
+  private guardOnScreen(): boolean {
+    const cam = this.cameras.main;
+    const f = this.frame;
+    // His body, not a single foot pixel. Off-screen he does not raise the question mark.
+    return this.gx > cam.scrollX + 24 && this.gx < cam.scrollX + f.viewW - 24
+      && this.gy - 36 > cam.scrollY && this.gy < cam.scrollY + f.viewH - 8;
+  }
+
   private enterSus(): void {
     this.gState = "sus";
     this.gTimer = 1200;
@@ -1009,6 +1015,8 @@ export class Yard extends Phaser.Scene {
   private enterChase(): void {
     this.gState = "chase";
     this.gLost = 0;
+    this.chaseStuck = 0;
+    this.chaseBest = 9999;
     this.sfx.alarm();
     this.shake(3, 200);
   }
@@ -1037,13 +1045,37 @@ export class Yard extends Phaser.Scene {
     const dx = this.px - this.gx;
     const dy = this.py - this.gy;
     const dist = Math.hypot(dx, dy) || 1;
-    this.stepGuard((dx / dist) * CHASE * dt / 1000, (dy / dist) * CHASE * dt / 1000);
+    const speed = (CHASE * dt) / 1000;
+    let vx = dx / dist;
+    let vy = dy / dist;
+    const odx = this.ox - this.gx;
+    const ody = this.oy - this.gy;
+    const od = Math.hypot(odx, ody);
+    // Bias around the officer instead of walking into his chest.
+    if (od > 4 && od < 48) {
+      const perpX = -ody / od;
+      const perpY = odx / od;
+      const side = perpX * dx + perpY * dy >= 0 ? 1 : -1;
+      vx += perpX * side * 1.15;
+      vy += perpY * side * 1.15;
+      const m = Math.hypot(vx, vy) || 1;
+      vx /= m;
+      vy /= m;
+    }
+    const moved = this.stepGuard(vx * speed, vy * speed, false);
+    if (dist + 2 < this.chaseBest) {
+      this.chaseBest = dist;
+      this.chaseStuck = 0;
+    } else if (moved < 0.25 || od < 56) this.chaseStuck += dt;
+    else this.chaseStuck = 0;
+    // He is not a shield. If the walk-around is not closing, he steps through the officer.
+    if (this.chaseStuck > 280) this.stepGuard((dx / dist) * speed, (dy / dist) * speed, true);
   }
 
-  private stepGuard(dx: number, dy: number): void {
+  private stepGuard(dx: number, dy: number, throughOfficer = false): number {
     const ox = this.gx;
     const oy = this.gy;
-    const tryAt = (nx: number, ny: number) => !this.bodyHits(nx, ny, 10, 12, false);
+    const tryAt = (nx: number, ny: number) => !this.bodyHits(nx, ny, 10, 12, false, !throughOfficer);
     if (tryAt(this.gx + dx, this.gy)) this.gx += dx;
     if (tryAt(this.gx, this.gy + dy)) this.gy += dy;
     this.gx = Phaser.Math.Clamp(this.gx, 24, MAP_W * TILE - 24);
@@ -1055,6 +1087,7 @@ export class Yard extends Phaser.Scene {
       this.gStep -= 7;
       this.gWalk = (this.gWalk + 1) % FRAMES;
     }
+    return moved;
   }
 
   private gFacePoint(x: number, y: number): void {
@@ -1226,7 +1259,7 @@ export class Yard extends Phaser.Scene {
     }
     const steamFrame = Math.floor(this.time.now / 140) % 3;
     this.steam.setTexture(`steam${steamFrame}`);
-    this.steam.setY(11 * TILE - 48 - steamFrame * 6);
+    this.steam.setY(this.steamBase - steamFrame * 7);
     const birdKeys = ["pigeon", "pigeon2", "pigeon3"];
     for (const bird of this.pigeons) {
       const frame = Math.floor(this.time.now / 280 + bird.x) % 3;
@@ -1239,7 +1272,7 @@ export class Yard extends Phaser.Scene {
       mote.setPosition((mote.getData("homeX") as number) + Math.sin(t) * 8, (mote.getData("homeY") as number) + Math.cos(t * 0.8) * 5);
       mote.setAlpha(0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t * 3)));
     }
-    for (const glow of this.glows) glow.setAlpha(0.16 + 0.34 * (0.5 + 0.5 * Math.sin(this.time.now / 180 + glow.x)));
+    for (const glow of this.glows) glow.setAlpha(1);
     this.arrow.setVisible(this.talking && Math.floor(this.time.now / 400) % 2 === 0);
     if (!this.grateOpen) {
       this.hint.setY(PLATE.y * TILE - 36 + Math.sin(this.time.now / 160) * 8);
